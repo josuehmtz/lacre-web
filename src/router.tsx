@@ -16,6 +16,7 @@ export const router = createBrowserRouter([
   // Sitio público: paquetes y precios.
   { path: '/', element: <HomePage /> },
   { path: '/login', element: <LoginPage /> },
+  { path: '/privacidad', lazy: lazyPage(() => import('./pages/PrivacyPage')) },
   // Panel del cliente (requiere sesión).
   {
     path: '/app',

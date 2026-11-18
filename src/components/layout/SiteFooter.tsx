@@ -18,6 +18,7 @@ export default function SiteFooter() {
           <a href="/#como-funciona">Cómo funciona</a>
           <a href="/#precios">Precios</a>
           <Link to="/login">Iniciar sesión</Link>
+          <Link to="/privacidad">Aviso de privacidad</Link>
         </nav>
       </div>
       <p className="muted small site-footer-copy">© {YEAR} Lacre. Todos los derechos reservados.</p>

@@ -126,6 +126,11 @@ export default function LoginPage() {
             </button>
           </form>
 
+          {registering && (
+            <p className="center muted small">
+              Al crear tu cuenta aceptas nuestro <Link to="/privacidad">aviso de privacidad</Link>.
+            </p>
+          )}
           <p className="center muted small">
             {registering ? '¿Ya tienes cuenta? ' : '¿Aún no tienes cuenta? '}
             <button type="button" className="link" onClick={() => setMode(registering ? 'login' : 'register')}>

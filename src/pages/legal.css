@@ -1,0 +1,6 @@
+.legal { max-width: 760px; margin: 0 auto; padding: 56px 20px 32px; display: grid; gap: 4px; }
+.legal h1 { font-size: clamp(2.4rem, 5vw, 3.2rem); }
+.legal h2 { font-size: 1.6rem; margin-top: 28px; }
+.legal p, .legal li { font-size: 1rem; line-height: 1.75; }
+.legal ul { margin: 0 0 8px; padding-left: 22px; display: grid; gap: 8px; }
+.legal li::marker { color: var(--accent); }
