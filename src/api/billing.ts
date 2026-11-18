@@ -49,4 +49,6 @@ export const orderStatusLabels: Record<OrderStatus, string> = {
 }
 
 const mxn = new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' })
-export const formatMxn = (n: number) => mxn.format(n)
+const mxnWhole = new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN', maximumFractionDigits: 0 })
+/** $499 para cantidades enteras, $899.50 si hay centavos. */
+export const formatMxn = (n: number) => (Number.isInteger(n) ? mxnWhole : mxn).format(n)

@@ -35,7 +35,13 @@ export function useThemeColors(): ThemeColors {
     const mq = window.matchMedia('(prefers-color-scheme: dark)')
     const update = () => setColors(read())
     mq.addEventListener('change', update)
-    return () => mq.removeEventListener('change', update)
+    // También cuando el usuario cambia el tema con el botón (html[data-theme]).
+    const observer = new MutationObserver(update)
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] })
+    return () => {
+      mq.removeEventListener('change', update)
+      observer.disconnect()
+    }
   }, [])
   return colors
 }

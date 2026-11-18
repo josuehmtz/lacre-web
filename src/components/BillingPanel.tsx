@@ -89,7 +89,9 @@ export default function BillingPanel({ eventId }: { eventId: string }) {
       )}
       {sync.isPending && <p className="muted">Confirmando tu pago…</p>}
       {checkout.error && <p className="error">{checkout.error.message}</p>}
-      {!b.paymentsEnabled && <p className="notice notice-info">Los pagos aún no están configurados en el servidor.</p>}
+      {!b.paymentsEnabled && (
+        <p className="notice notice-info">Por el momento no es posible pagar. Inténtalo de nuevo más tarde.</p>
+      )}
       {pendingOrder && !notice && (
         <p className="notice notice-info">
           Tienes un pago pendiente de {formatMxn(pendingOrder.amountMxn)} (paquete {pendingOrder.planName}). Si pagaste en
@@ -119,7 +121,9 @@ export default function BillingPanel({ eventId }: { eventId: string }) {
               </div>
             ))}
           </div>
-          <p className="muted small">Pago seguro con Stripe: tarjeta de crédito o débito, u OXXO. Pago único por evento.</p>
+          <p className="muted small">
+            Paga con tarjeta de crédito o débito, o en efectivo en OXXO. Es un solo pago por tu evento.
+          </p>
         </>
       )}
 
