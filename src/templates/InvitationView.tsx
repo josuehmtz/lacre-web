@@ -1,4 +1,5 @@
 import { useEffect, useState, type CSSProperties, type ReactNode } from 'react'
+import { photoUrl } from '../api/photos'
 import { bodyFonts, headingFonts, useTemplateFonts } from './fonts'
 import type { TemplateConfig, TemplateEvent, TemplateGuest, TemplateKey } from './types'
 import './templates.css'
@@ -10,6 +11,8 @@ interface Props {
   guest?: TemplateGuest
   /** Espacio para la confirmación de asistencia (fase 3). */
   rsvpSlot?: ReactNode
+  /** Base pública de las fotos (R2). Sin ella no se muestran fotos. */
+  photoBaseUrl?: string | null
 }
 
 const dateFmt = new Intl.DateTimeFormat('es-MX', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
@@ -21,7 +24,7 @@ const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
  * Una sola vista para las 3 plantillas: comparten contenido y secciones,
  * y cada una cambia tipografía, colores, ornamentos y acomodo vía CSS (.tpl-<clave>).
  */
-export default function InvitationView({ templateKey, config, event, guest, rsvpSlot }: Props) {
+export default function InvitationView({ templateKey, config, event, guest, rsvpSlot, photoBaseUrl }: Props) {
   useTemplateFonts()
   const starts = new Date(event.startsAt)
   const { sections, texts } = config
@@ -36,10 +39,18 @@ export default function InvitationView({ templateKey, config, event, guest, rsvp
 
   const hasPeople = sections.people && (config.people.parents.trim() || config.people.godparents.trim())
   const itinerary = config.itinerary.filter((i) => i.label.trim())
+  const cover = photoUrl(photoBaseUrl, config.photos.cover)
+  const gallery = sections.gallery
+    ? config.photos.gallery.map((key) => photoUrl(photoBaseUrl, key)).filter((url): url is string => url !== null)
+    : []
 
   return (
     <article className={`tpl tpl-${templateKey} tpl-font-${config.headingFont}`} style={style}>
       <header className="tpl-hero">
+        {cover && (
+          // Portada: es lo primero que se ve, así que se carga con prioridad.
+          <img className="tpl-cover" src={cover} alt={texts.names || event.title} fetchPriority="high" />
+        )}
         <Ornament templateKey={templateKey} />
         {texts.headline && <p className="tpl-headline">{texts.headline}</p>}
         <h1 className="tpl-names">{texts.names || event.title}</h1>
@@ -66,6 +77,16 @@ export default function InvitationView({ templateKey, config, event, guest, rsvp
       )}
 
       {sections.countdown && <Countdown target={starts} />}
+
+      {gallery.length > 0 && (
+        <section className="tpl-section">
+          <div className="tpl-gallery">
+            {gallery.map((url, i) => (
+              <img key={url} src={url} alt={`Foto ${i + 1}`} loading="lazy" decoding="async" />
+            ))}
+          </div>
+        </section>
+      )}
 
       {hasPeople && (
         <section className="tpl-section tpl-people">

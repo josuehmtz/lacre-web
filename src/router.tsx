@@ -27,6 +27,7 @@ export const router = createBrowserRouter([
       { path: 'events/:id', element: <EventPage /> },
       { path: 'events/:id/design', lazy: lazyPage(() => import('./pages/DesignPage')) },
       { path: 'events/:id/seating', lazy: lazyPage(() => import('./pages/SeatingPage')) },
+      { path: 'events/:id/lista', lazy: lazyPage(() => import('./pages/GuestListPrintPage')) },
       // Link de un salón (cliente de un evento) o de Lacre (personal de un salón).
       { path: 'unirse/:token', lazy: lazyPage(() => import('./pages/JoinPage')) },
       { path: 'admin', lazy: lazyPage(() => import('./pages/AdminPage')) },

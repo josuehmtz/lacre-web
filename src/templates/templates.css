@@ -171,3 +171,22 @@
 .tpl-qr { display: grid; gap: 10px; justify-items: center; }
 .qr-image { width: 220px; height: 220px; border-radius: 12px; background: #fff; padding: 6px; border: 1px solid var(--tpl-line); }
 .qr-placeholder { width: 220px; height: 220px; }
+
+/* Fotos: portada y galería. Cada plantilla le da su propia forma a la portada. */
+.tpl-cover {
+  width: min(100%, 420px);
+  aspect-ratio: 4 / 5;
+  object-fit: cover;
+  border-radius: 8px;
+  margin-bottom: 8px;
+}
+.tpl-clasica .tpl-cover { border-radius: 999px 999px 8px 8px; border: 1px solid var(--tpl-line); padding: 6px; background: var(--tpl-bg); }
+.tpl-jardin .tpl-cover { width: min(80%, 320px); aspect-ratio: 1; border-radius: 50%; box-shadow: 0 0 0 6px var(--tpl-soft); }
+.tpl-moderna .tpl-cover { width: 100%; max-width: none; aspect-ratio: 3 / 4; border-radius: 0; }
+
+.tpl-gallery { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; width: 100%; }
+.tpl-gallery img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 6px; display: block; }
+/* Con número impar (o una sola), la primera foto ocupa todo el ancho. */
+.tpl-gallery > img:first-child:nth-last-child(odd) { grid-column: 1 / -1; aspect-ratio: 16 / 10; }
+.tpl-jardin .tpl-gallery img { border-radius: 16px; }
+.tpl-moderna .tpl-gallery img { border-radius: 0; }

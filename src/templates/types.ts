@@ -25,7 +25,10 @@ export interface TemplateConfig {
     people: boolean
     dressCode: boolean
     gifts: boolean
+    gallery: boolean
   }
+  /** Llaves de las fotos en R2 (la URL se arma con photoBaseUrl). */
+  photos: { cover: string | null; gallery: string[] }
   itinerary: ItineraryItem[]
   people: { parents: string; godparents: string }
   dressCode: string

@@ -122,6 +122,9 @@ export default function EventPage() {
                   <Link to={`/app/events/${ev.id}/seating`} className="button">
                     Mesas
                   </Link>
+                  <Link to={`/app/events/${ev.id}/lista`} className="button secondary">
+                    Lista para imprimir
+                  </Link>
                 </>
               )}
               <button className="secondary" onClick={() => setEditing(true)}>

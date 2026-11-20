@@ -51,6 +51,7 @@ export default function InvitationPage() {
         config={config}
         event={event}
         guest={guest}
+        photoBaseUrl={event.photoBaseUrl}
         rsvpSlot={
           <RsvpPanel
             token={token}

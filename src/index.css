@@ -34,6 +34,12 @@
   --shadow-sm: 0 1px 2px rgb(42 36 32 / 0.05), 0 2px 10px rgb(42 36 32 / 0.04);
   --shadow: 0 18px 50px -12px rgb(42 36 32 / 0.18);
   --glass: rgb(250 247 242 / 0.78);
+  /* Plano del salón (Konva lee estos valores; ver seating/useThemeColors.ts) */
+  --plan-floor: #fffdf9;
+  --plan-grid: #efe7dc;
+  --plan-wall: #a8977f;
+  --plan-table: #ffffff;
+  --plan-seat: #f1e9dd;
   color-scheme: light;
 }
 
@@ -63,6 +69,11 @@
     --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.3), 0 2px 10px rgb(0 0 0 / 0.2);
     --shadow: 0 18px 50px -12px rgb(0 0 0 / 0.6);
     --glass: rgb(18 14 20 / 0.72);
+    --plan-floor: #211a26;
+    --plan-grid: #2e2534;
+    --plan-wall: #9a8c98;
+    --plan-table: #342a3b;
+    --plan-seat: #4a3e50;
     color-scheme: dark;
   }
 }
@@ -92,6 +103,11 @@
   --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.3), 0 2px 10px rgb(0 0 0 / 0.2);
   --shadow: 0 18px 50px -12px rgb(0 0 0 / 0.6);
   --glass: rgb(18 14 20 / 0.72);
+  --plan-floor: #211a26;
+  --plan-grid: #2e2534;
+  --plan-wall: #9a8c98;
+  --plan-table: #342a3b;
+  --plan-seat: #4a3e50;
   color-scheme: dark;
 }
 
@@ -299,6 +315,19 @@ td.phone { white-space: nowrap; }
 .field { display: grid; gap: 4px; font-size: 0.9rem; }
 .grid-3 { grid-template-columns: repeat(3, 1fr); }
 .nested { display: grid; gap: 8px; padding: 4px 0 8px 26px; }
+
+/* Editor de fotos (diseño de la invitación) */
+.photos-editor { display: grid; gap: 12px; }
+.photo-slot { display: grid; grid-template-columns: 96px 1fr; grid-template-rows: auto 1fr; gap: 4px 14px; align-items: start; }
+.photo-slot-label { grid-column: 1 / -1; font-size: 0.9rem; }
+.photo-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.photo-thumb { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 8px; display: block; background: var(--surface-2); }
+.photo-thumb-cover { aspect-ratio: 4 / 5; }
+.photo-empty { display: grid; place-items: center; font-size: 0.75rem; color: var(--text-muted); border: 1px dashed var(--border); }
+.photo-grid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 10px; }
+.photo-grid li { display: grid; gap: 4px; }
+.photo-grid-actions { display: flex; justify-content: center; gap: 4px; }
+.photo-grid-actions button { padding: 2px 8px; min-width: 0; }
 .toggle { display: flex !important; align-items: center; gap: 8px; cursor: pointer; }
 .toggle input { width: 18px; height: 18px; accent-color: var(--accent); }
 
@@ -309,12 +338,17 @@ td.phone { white-space: nowrap; }
 
 .template-picker { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
 .template-option {
-  display: grid; gap: 4px; text-align: left; white-space: normal; align-content: start;
-  background: transparent; color: var(--text); border: 1px solid var(--border); padding: 10px;
+  display: grid; gap: 4px; text-align: left; white-space: normal; align-content: start; justify-items: start;
+  background: transparent; color: var(--text); border: 1px solid var(--border); padding: 12px;
+  /* Es un <button>: sin esto hereda la forma de píldora y los colores recortan el contenido. */
+  border-radius: var(--radius-sm); font-weight: 400; min-width: 0;
 }
-.template-option.selected { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); background: var(--accent-soft); }
+.template-option strong { font-weight: 600; }
+.template-option:hover:not(:disabled) { background: var(--surface-2); border-color: color-mix(in srgb, var(--accent) 50%, var(--border)); }
+:root[data-theme='dark'] .template-option:hover:not(:disabled) { color: var(--text); }
+.template-option.selected, .template-option.selected:hover:not(:disabled) { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); background: var(--accent-soft); }
 .swatches { display: flex; gap: 4px; margin-bottom: 4px; }
-.swatches i { width: 18px; height: 18px; border-radius: 50%; border: 1px solid var(--border); }
+.swatches i { width: 18px; height: 18px; border-radius: 50%; border: 1px solid var(--border); flex: none; }
 
 .design-layout { display: grid; grid-template-columns: minmax(0, 1fr) 400px; gap: 20px; align-items: start; }
 .design-controls { display: grid; gap: 12px; }
@@ -381,7 +415,19 @@ td.phone { white-space: nowrap; }
 .scanner-camera video { width: 100%; height: 100%; object-fit: cover; }
 .scanner-camera-error { position: absolute; inset: 0; display: grid; place-items: center; padding: 24px; text-align: center; color: #fff; background: rgba(0, 0, 0, 0.75); margin: 0; }
 .scan-alert { border: 1px solid var(--error); border-radius: 10px; padding: 12px; display: grid; gap: 8px; justify-items: start; color: var(--error); }
+.scan-alert p, .scan-alert ul { margin: 0; }
+.scan-alert ul { padding-left: 18px; }
 .center { text-align: center; }
+
+/* Estado de conexión de la estación de hostess */
+.connection-bar {
+  margin: 0; padding: 8px 12px; border-radius: var(--radius-sm); font-size: 0.85rem;
+  display: flex; gap: 8px; align-items: baseline; background: var(--ok-soft); color: var(--text);
+}
+.connection-bar .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ok); flex: none; align-self: center; }
+.connection-bar.offline { background: var(--warn-soft); font-weight: 600; }
+.connection-bar.offline .dot { background: #d29922; }
+.result-offline { margin: 0; font-size: 0.8rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; }
 .logout { justify-self: center; margin-top: 8px; }
 
 .pin-form { justify-items: center; }
@@ -484,3 +530,26 @@ button.big { padding: 12px 16px; font-size: 1.05rem; }
 .orders summary { cursor: pointer; color: var(--text-muted); }
 .orders ul { list-style: none; padding: 0; margin: 8px 0 0; display: grid; gap: 6px; }
 .orders li { display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.plan-hint { margin: 0; padding: 8px 12px; border-radius: var(--radius-sm); background: var(--accent-soft); color: var(--text); }
+
+/* Lista para la puerta (imprimible) */
+.print-heading { display: grid; gap: 2px; margin: 8px 0 12px; }
+.print-heading h2 { margin: 0; font-family: var(--font-display); font-size: 1.6rem; }
+.print-heading p { margin: 0; }
+.print-table th, .print-table td { padding: 6px 8px; border-bottom: 1px solid var(--border); text-align: left; vertical-align: top; }
+.print-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+.print-table .strong { font-weight: 600; }
+.print-table .col-check { width: 44px; text-align: center; }
+.checkbox-box { display: inline-block; width: 16px; height: 16px; border: 1.5px solid var(--text); border-radius: 3px; }
+
+@media print {
+  .topbar, .no-print { display: none !important; }
+  :root, body { background: #fff !important; color: #000 !important; }
+  .print-page { padding: 0; max-width: none; }
+  .print-table { font-size: 10.5pt; }
+  .print-table th, .print-table td { border-bottom: 1px solid #999; color: #000; }
+  .print-table thead { display: table-header-group; } /* Encabezado repetido en cada hoja */
+  .print-table tr { break-inside: avoid; }
+  .checkbox-box { border-color: #000; }
+  @page { margin: 12mm; }
+}

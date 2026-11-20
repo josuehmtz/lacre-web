@@ -1,7 +1,7 @@
 import { useMutation } from '@tanstack/react-query'
 import type Konva from 'konva'
 import { useEffect, useRef, useState } from 'react'
-import { Circle, Group, Layer, Line, Rect, Stage, Text, Transformer } from 'react-konva'
+import { Arrow, Circle, Group, Layer, Line, Rect, Stage, Text, Transformer } from 'react-konva'
 import {
   elementKinds,
   savePlan,
@@ -12,7 +12,7 @@ import {
   type SeatingLayout,
   type TableShape,
 } from '../../api/seating'
-import { clamp, seatPositions, tableSize } from './geometry'
+import { clamp, seatPositions, snapToWall, tableSize } from './geometry'
 import { useThemeColors, type ThemeColors } from './useThemeColors'
 import { useConfirm } from '../../lib/confirm'
 
@@ -102,10 +102,13 @@ export default function FloorPlanEditor({ eventId, seating, onSaved, onDirtyChan
   const addElement = (kind: ElementKind) => {
     const id = `el-${Date.now().toString(36)}`
     const k = elementKinds[kind]
-    setLayout((l) => ({
-      ...l,
-      elements: [...l.elements, { id, kind, label: k.label, width: k.width, height: k.height, rotation: 0, ...spawnPoint(l.elements.length) }],
-    }))
+    setLayout((l) => {
+      // La entrada nace pegada a la pared de abajo; las demás piezas, cerca del centro.
+      const place = kind === 'entrance'
+        ? snapToWall(l, k.width, k.height, l.width / 2, l.height)
+        : { rotation: 0, ...spawnPoint(l.elements.length) }
+      return { ...l, elements: [...l.elements, { id, kind, label: k.label, width: k.width, height: k.height, ...place }] }
+    })
     setSelected({ type: 'element', key: id })
   }
 
@@ -184,6 +187,14 @@ export default function FloorPlanEditor({ eventId, seating, onSaved, onDirtyChan
 
       <div className="plan-body">
         <div className="plan-canvas" ref={containerRef}>
+          {!layout.elements.some((e) => e.kind === 'entrance') && (
+            <p className="plan-hint small">
+              Marca dónde está la entrada para que todos lean el plano en el mismo sentido.{' '}
+              <button type="button" className="link small" onClick={() => addElement('entrance')}>
+                Agregar entrada
+              </button>
+            </p>
+          )}
           <Stage
             ref={stageRef}
             width={width}
@@ -220,8 +231,15 @@ export default function FloorPlanEditor({ eventId, seating, onSaved, onDirtyChan
               <Transformer
                 ref={trRef}
                 rotationSnaps={[0, 45, 90, 135, 180, 225, 270, 315]}
-                rotateEnabled
-                enabledAnchors={selected?.type === 'element' ? ['top-left', 'top-right', 'bottom-left', 'bottom-right', 'middle-left', 'middle-right', 'top-center', 'bottom-center'] : []}
+                // La entrada se orienta sola según la pared; solo se puede hacer más ancha o angosta.
+                rotateEnabled={selectedElement?.kind !== 'entrance'}
+                enabledAnchors={
+                  selectedElement?.kind === 'entrance'
+                    ? ['middle-left', 'middle-right']
+                    : selected?.type === 'element'
+                      ? ['top-left', 'top-right', 'bottom-left', 'bottom-right', 'middle-left', 'middle-right', 'top-center', 'bottom-center']
+                      : []
+                }
                 borderStroke={colors.accent}
                 anchorStroke={colors.accent}
                 anchorFill={colors.surface}
@@ -289,13 +307,16 @@ export default function FloorPlanEditor({ eventId, seating, onSaved, onDirtyChan
 
 function Room({ layout, colors, onClick }: { layout: SeatingLayout; colors: ThemeColors; onClick: () => void }) {
   const step = 50
+  const wall = 6
   const lines = []
-  for (let x = step; x < layout.width; x += step) lines.push(<Line key={`v${x}`} points={[x, 0, x, layout.height]} stroke={colors.border} strokeWidth={0.5} opacity={0.6} listening={false} />)
-  for (let y = step; y < layout.height; y += step) lines.push(<Line key={`h${y}`} points={[0, y, layout.width, y]} stroke={colors.border} strokeWidth={0.5} opacity={0.6} listening={false} />)
+  for (let x = step; x < layout.width; x += step) lines.push(<Line key={`v${x}`} points={[x, 0, x, layout.height]} stroke={colors.grid} strokeWidth={1} listening={false} />)
+  for (let y = step; y < layout.height; y += step) lines.push(<Line key={`h${y}`} points={[0, y, layout.width, y]} stroke={colors.grid} strokeWidth={1} listening={false} />)
   return (
     <>
-      <Rect width={layout.width} height={layout.height} fill={colors.bg} stroke={colors.border} strokeWidth={2} onClick={onClick} onTap={onClick} />
+      <Rect width={layout.width} height={layout.height} fill={colors.floor} onClick={onClick} onTap={onClick} />
       {lines}
+      {/* Paredes: un trazo grueso para que el contorno del salón se distinga en ambos temas. */}
+      <Rect x={wall / 2} y={wall / 2} width={layout.width - wall} height={layout.height - wall} stroke={colors.wall} strokeWidth={wall} listening={false} />
     </>
   )
 }
@@ -310,7 +331,7 @@ function TableShapeNode({ table, layout, colors, selected, onSelect, onChange }:
 }) {
   const { width, height } = tableSize(table.shape, table.capacity)
   const full = table.seated >= table.capacity
-  const fill = table.seated === 0 ? colors.surface : colors.accentSoft
+  const fill = table.seated === 0 ? colors.table : colors.accentSoft
   const stroke = selected ? colors.accent : full ? colors.ok : colors.muted
 
   return (
@@ -332,7 +353,7 @@ function TableShapeNode({ table, layout, colors, selected, onSelect, onChange }:
       onTransformEnd={(e) => onChange({ rotation: Math.round(e.target.rotation()) })}
     >
       {seatPositions(table.shape, table.capacity).map((p, i) => (
-        <Circle key={i} x={p.x} y={p.y} radius={7} fill={i < table.seated ? colors.accent : colors.surface} stroke={colors.muted} strokeWidth={1} />
+        <Circle key={i} x={p.x} y={p.y} radius={7} fill={i < table.seated ? colors.accent : colors.seat} stroke={colors.muted} strokeWidth={1} />
       ))}
       {table.shape === 'Round' ? (
         <Circle radius={width / 2} fill={fill} stroke={stroke} strokeWidth={selected ? 3 : 2} />
@@ -357,6 +378,7 @@ function ElementShape({ element, layout, colors, selected, onSelect, onChange }:
   onSelect: () => void
   onChange: (patch: Partial<LayoutElement>) => void
 }) {
+  const isEntrance = element.kind === 'entrance'
   return (
     <Group
       id={element.id}
@@ -369,49 +391,86 @@ function ElementShape({ element, layout, colors, selected, onSelect, onChange }:
       onDragStart={onSelect}
       onDragMove={(e) => {
         const n = e.target
+        if (isEntrance) {
+          // Se desliza pegada a la pared más cercana y gira para que la flecha apunte hacia adentro.
+          const snap = snapToWall(layout, element.width, element.height, n.x(), n.y())
+          n.position(snap)
+          n.rotation(snap.rotation)
+          return
+        }
         n.x(clamp(n.x(), 0, layout.width))
         n.y(clamp(n.y(), 0, layout.height))
       }}
-      onDragEnd={(e) => onChange({ x: e.target.x(), y: e.target.y() })}
+      onDragEnd={(e) => onChange({ x: e.target.x(), y: e.target.y(), rotation: Math.round(e.target.rotation()) })}
       onTransformEnd={(e) => {
         // El Transformer escala el nodo: convertimos la escala en ancho/alto y la regresamos a 1.
         const n = e.target
-        const patch = {
-          x: n.x(),
-          y: n.y(),
-          rotation: Math.round(n.rotation()),
-          width: Math.max(20, Math.round(element.width * n.scaleX())),
-          height: Math.max(20, Math.round(element.height * n.scaleY())),
-        }
+        const width = Math.max(20, Math.round(element.width * n.scaleX()))
+        const height = Math.max(20, Math.round(element.height * n.scaleY()))
         n.scaleX(1)
         n.scaleY(1)
-        onChange(patch)
+        if (isEntrance) {
+          onChange({ width, ...snapToWall(layout, width, element.height, n.x(), n.y()) })
+          return
+        }
+        onChange({ x: n.x(), y: n.y(), rotation: Math.round(n.rotation()), width, height })
       }}
     >
-      <Rect
-        x={-element.width / 2}
-        y={-element.height / 2}
-        width={element.width}
-        height={element.height}
-        fill={element.kind === 'dancefloor' ? colors.accentSoft : colors.surface}
-        stroke={selected ? colors.accent : colors.muted}
-        strokeWidth={selected ? 2 : 1}
-        dash={element.kind === 'entrance' ? [6, 4] : undefined}
-        cornerRadius={4}
-      />
-      <Text
-        text={element.label}
-        fontSize={14}
-        fill={colors.muted}
-        width={element.width}
-        height={element.height}
-        x={-element.width / 2}
-        y={-element.height / 2}
-        align="center"
-        verticalAlign="middle"
-        listening={false}
-      />
+      {isEntrance ? (
+        <EntranceDrawing element={element} colors={colors} selected={selected} />
+      ) : (
+        <>
+          <Rect
+            x={-element.width / 2}
+            y={-element.height / 2}
+            width={element.width}
+            height={element.height}
+            fill={element.kind === 'dancefloor' ? colors.accentSoft : colors.table}
+            stroke={selected ? colors.accent : colors.wall}
+            strokeWidth={selected ? 2 : 1}
+            cornerRadius={4}
+          />
+          <Text
+            text={element.label}
+            fontSize={14}
+            fill={colors.text}
+            opacity={0.75}
+            width={element.width}
+            height={element.height}
+            x={-element.width / 2}
+            y={-element.height / 2}
+            align="center"
+            verticalAlign="middle"
+            listening={false}
+          />
+        </>
+      )}
     </Group>
+  )
+}
+
+/**
+ * Entrada: hueco en la pared con una flecha hacia el interior del salón.
+ * En coordenadas locales "adentro" es +y; snapToWall gira el grupo según la pared.
+ */
+function EntranceDrawing({ element, colors, selected }: { element: LayoutElement; colors: ThemeColors; selected: boolean }) {
+  const w = element.width
+  const h = element.height
+  // En la pared de abajo el grupo va girado 180°: volteamos el texto para que no quede de cabeza.
+  const upsideDown = Math.round(((element.rotation % 360) + 360) % 360) === 180
+  return (
+    <>
+      {/* Tapa la pared en el hueco de la puerta. */}
+      <Rect x={-w / 2} y={-h / 2} width={w} height={h} fill={colors.floor} />
+      <Rect x={-w / 2} y={-h / 2} width={w} height={h} fill={colors.accentSoft} stroke={colors.accent}
+        strokeWidth={selected ? 3 : 2} dash={[8, 5]} cornerRadius={3} />
+      <Arrow points={[0, h / 2 + 6, 0, h / 2 + 34]} stroke={colors.accent} fill={colors.accent} strokeWidth={3}
+        pointerLength={9} pointerWidth={11} listening={false} />
+      <Group rotation={upsideDown ? 180 : 0} listening={false}>
+        <Text text={(element.label || 'Entrada').toUpperCase()} fontSize={13} fontStyle="bold" letterSpacing={2}
+          fill={colors.accent} width={w} height={h} x={-w / 2} y={-h / 2} align="center" verticalAlign="middle" />
+      </Group>
+    </>
   )
 }
 

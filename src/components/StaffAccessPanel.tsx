@@ -44,7 +44,10 @@ export default function StaffAccessPanel({ eventId, eventTitle, readOnly }: Prop
   })
 
   const shareText = (acc: CreatedStaffAccess) =>
-    `Acceso de hostess para "${eventTitle}"\nAbre este link el día del evento: ${staffUrl(acc.id)}\nPIN: ${acc.pin}`
+    `Acceso de hostess para "${eventTitle}"\nLink: ${staffUrl(acc.id)}\nPIN: ${acc.pin}\n\n` +
+    // Sin esto, en un salón sin señal la hostess no tendría la lista guardada.
+    'Importante: ábrelo e inicia sesión antes de llegar al salón, con Wi-Fi o datos. ' +
+    'Así la lista de invitados queda guardada en tu celular y podrás registrar entradas aunque en el salón no haya internet.'
 
   const copy = async (acc: CreatedStaffAccess) => {
     await navigator.clipboard.writeText(shareText(acc))

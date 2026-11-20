@@ -12,7 +12,7 @@ export interface PublicInvitation {
   /** Motivo por el que ya no se puede responder, o null. */
   rsvpClosedReason: string | null
   isPreview: boolean
-  event: TemplateEvent & { templateKey: TemplateKey; templateConfig: StoredConfig }
+  event: TemplateEvent & { templateKey: TemplateKey; templateConfig: StoredConfig; photoBaseUrl: string | null }
 }
 
 export interface RsvpAnswer {

@@ -53,3 +53,24 @@ export function seatPositions(shape: TableShape, capacity: number): { x: number;
 
 /** Mantiene un punto dentro del salón dejando un margen. */
 export const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v))
+
+/**
+ * Pega la entrada a la pared más cercana a (x, y) y la gira para que su "adentro" (+y local) apunte al salón.
+ * Rotaciones: arriba 0°, derecha 90°, abajo 180°, izquierda 270°.
+ */
+export function snapToWall(
+  room: { width: number; height: number },
+  width: number,
+  depth: number,
+  x: number,
+  y: number,
+): { x: number; y: number; rotation: number } {
+  const along = (v: number, max: number) => clamp(v, Math.min(width / 2, max / 2), Math.max(max - width / 2, max / 2))
+  const walls = [
+    { dist: y, place: () => ({ x: along(x, room.width), y: depth / 2, rotation: 0 }) },
+    { dist: room.height - y, place: () => ({ x: along(x, room.width), y: room.height - depth / 2, rotation: 180 }) },
+    { dist: x, place: () => ({ x: depth / 2, y: along(y, room.height), rotation: 270 }) },
+    { dist: room.width - x, place: () => ({ x: room.width - depth / 2, y: along(y, room.height), rotation: 90 }) },
+  ]
+  return walls.reduce((best, w) => (w.dist < best.dist ? w : best)).place()
+}

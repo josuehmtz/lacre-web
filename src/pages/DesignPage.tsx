@@ -3,6 +3,7 @@ import { useEffect, useState, type ReactNode } from 'react'
 import { Link, useParams } from 'react-router'
 import { getEvent, type EventDetail } from '../api/events'
 import { getTemplateConfig, saveTemplateConfig, type SavedTemplate } from '../api/templates'
+import PhotosEditor from '../components/PhotosEditor'
 import { headingFonts } from '../templates/fonts'
 import InvitationView from '../templates/InvitationView'
 import { getTemplate, resolveConfig, templates } from '../templates/registry'
@@ -150,6 +151,17 @@ function Editor({ event, saved }: { event: EventDetail; saved: SavedTemplate }) 
             </button>
           </Group>
 
+          <Group title="Fotos">
+            <PhotosEditor
+              eventId={event.id}
+              photoBaseUrl={saved.photoBaseUrl}
+              photos={config.photos}
+              onChange={(photos) => set('photos', photos)}
+              galleryEnabled={sections.gallery}
+              onGalleryEnabledChange={(v) => set('sections', { ...sections, gallery: v })}
+            />
+          </Group>
+
           <Group title="Textos">
             <div className="form">
               <label>
@@ -251,7 +263,7 @@ function Editor({ event, saved }: { event: EventDetail; saved: SavedTemplate }) 
         <div className="design-preview">
           <p className="muted small">Así la verá un invitado (ejemplo con 2 pases):</p>
           <div className="phone-frame">
-            <InvitationView templateKey={templateKey} config={config} event={event} guest={sampleGuest} />
+            <InvitationView templateKey={templateKey} config={config} event={event} guest={sampleGuest} photoBaseUrl={saved.photoBaseUrl} />
           </div>
         </div>
       </div>

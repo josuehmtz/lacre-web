@@ -11,6 +11,12 @@ export interface ThemeColors {
   accentSoft: string
   ok: string
   error: string
+  /** Colores propios del plano: contrastan con la página en ambos temas. */
+  floor: string
+  grid: string
+  wall: string
+  table: string
+  seat: string
 }
 
 function read(): ThemeColors {
@@ -26,6 +32,11 @@ function read(): ThemeColors {
     accentSoft: v('--accent-soft'),
     ok: v('--ok'),
     error: v('--error'),
+    floor: v('--plan-floor'),
+    grid: v('--plan-grid'),
+    wall: v('--plan-wall'),
+    table: v('--plan-table'),
+    seat: v('--plan-seat'),
   }
 }
 
