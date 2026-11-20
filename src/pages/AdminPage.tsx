@@ -18,6 +18,7 @@ import {
 } from '../api/venues'
 import { formatDateTime } from '../lib/dates'
 import { plural } from '../lib/text'
+import { useConfirm } from '../lib/confirm'
 
 /** Panel de Lacre: salones con convenio, su personal y los eventos que han dado de alta. */
 export default function AdminPage() {
@@ -62,6 +63,7 @@ export default function AdminPage() {
 
 function VenueCard({ venue }: { venue: Venue }) {
   const queryClient = useQueryClient()
+  const confirm = useConfirm()
   const [editing, setEditing] = useState(false)
   const [showEvents, setShowEvents] = useState(false)
   const [invite, setInvite] = useState<CreatedLink | null>(null)
@@ -127,8 +129,16 @@ function VenueCard({ venue }: { venue: Venue }) {
                 <button
                   className="secondary small"
                   disabled={removeMember.isPending}
-                  onClick={() => {
-                    if (confirm(`¿Quitar a ${m.email} del personal de ${venue.name}?`)) removeMember.mutate(m.userId)
+                  onClick={async () => {
+                    if (
+                      await confirm({
+                        title: `¿Quitar a ${m.email}?`,
+                        message: `Dejará de ver y editar los eventos de ${venue.name}. Los eventos no se borran.`,
+                        confirmLabel: 'Quitar',
+                        danger: true,
+                      })
+                    )
+                      removeMember.mutate(m.userId)
                   }}
                 >
                   Quitar
@@ -220,12 +230,15 @@ function VenueCard({ venue }: { venue: Venue }) {
   )
 }
 
-const today = () => new Date().toISOString().slice(0, 10)
+/** Fecha local (no UTC: de noche en México, toISOString ya da el día siguiente). */
+const isoDate = (d: Date) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+const today = () => isoDate(new Date())
 const inOneYear = () => {
   const d = new Date()
   d.setFullYear(d.getFullYear() + 1)
   d.setDate(d.getDate() - 1)
-  return d.toISOString().slice(0, 10)
+  return isoDate(d)
 }
 
 function VenueForm({ venue, onDone }: { venue?: Venue; onDone: () => void }) {

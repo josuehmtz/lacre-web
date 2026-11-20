@@ -2,11 +2,17 @@ import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 import { Link } from 'react-router'
 import { eventStatusLabels, eventTypeLabels, getEvents } from '../api/events'
-import { getAccount, type MyVenue } from '../api/venues'
+import { formatDateOnly, getAccount, type MyVenue } from '../api/venues'
 import NewEventCard from '../components/NewEventCard'
 import { formatDateTime } from '../lib/dates'
 import { plural } from '../lib/text'
 import { Seal } from '../components/brand/Logo'
+
+/** "2026-11-19" en la fecha local del navegador (comparable con las fechas del convenio). */
+const localToday = () => {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
 
 const monthFmt = new Intl.DateTimeFormat('es-MX', { month: 'short' })
 
@@ -47,8 +53,17 @@ export default function DashboardPage() {
         .filter((v) => !v.agreementActive)
         .map((v) => (
           <p key={v.id} className="notice notice-info">
-            El convenio de <strong>{v.name}</strong> no está vigente, así que por ahora no puedes dar de alta eventos
-            nuevos. Tus eventos existentes siguen disponibles.
+            {v.agreementStartsOn > localToday() ? (
+              <>
+                El convenio de <strong>{v.name}</strong> empieza el {formatDateOnly(v.agreementStartsOn)}. A partir de
+                ese día podrás dar de alta eventos.
+              </>
+            ) : (
+              <>
+                El convenio de <strong>{v.name}</strong> terminó el {formatDateOnly(v.agreementEndsOn)}, así que ya no
+                puedes dar de alta eventos nuevos. Tus eventos existentes siguen disponibles.
+              </>
+            )}
           </p>
         ))}
 

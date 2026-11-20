@@ -5,10 +5,12 @@ import { getEvent } from '../api/events'
 import { getSeating, type Seating } from '../api/seating'
 import FloorPlanEditor from '../components/seating/FloorPlanEditor'
 import GuestAssignment from '../components/seating/GuestAssignment'
+import { useConfirm } from '../lib/confirm'
 
 export default function SeatingPage() {
   const { id = '' } = useParams()
   const queryClient = useQueryClient()
+  const confirm = useConfirm()
   const [tab, setTab] = useState<'plan' | 'assign'>('plan')
   const [planDirty, setPlanDirty] = useState(false)
 
@@ -62,8 +64,18 @@ export default function SeatingPage() {
           role="tab"
           aria-selected={tab === 'assign'}
           className={tab === 'assign' ? '' : 'secondary'}
-          onClick={() => {
-            if (planDirty && !confirm('Tienes cambios del plano sin guardar. Si cambias de pestaña se perderán. ¿Continuar?')) return
+          onClick={async () => {
+            if (
+              planDirty &&
+              !(await confirm({
+                title: 'Tienes cambios sin guardar',
+                message: 'Si cambias de pestaña se perderán los cambios del plano.',
+                confirmLabel: 'Descartar cambios',
+                cancelLabel: 'Seguir editando',
+                danger: true,
+              }))
+            )
+              return
             setPlanDirty(false)
             setTab('assign')
           }}

@@ -197,6 +197,23 @@ button.small, .button.small { padding: 5px 12px; font-size: 0.82rem; }
 button.link { background: none; color: var(--accent-strong); padding: 0; border: 0; font-weight: 600; }
 button.link:hover:not(:disabled) { background: none; text-decoration: underline; }
 .button.big, button.big { padding: 13px 26px; font-size: 1rem; }
+button.danger-solid { background: var(--error); color: #fff; }
+button.danger-solid:hover:not(:disabled) { background: color-mix(in srgb, var(--error) 85%, #000); }
+
+/* Diálogo de confirmación (reemplaza window.confirm) */
+.confirm-dialog {
+  width: min(440px, calc(100vw - 32px)); padding: 0; border: 1px solid var(--border); border-radius: var(--radius);
+  background: var(--surface); color: var(--text); box-shadow: var(--shadow);
+}
+.confirm-dialog::backdrop { background: rgb(18 14 20 / 0.45); backdrop-filter: blur(3px); }
+.confirm-dialog[open] { animation: confirm-in 0.16s ease-out; }
+@keyframes confirm-in { from { opacity: 0; transform: translateY(8px) scale(0.98); } }
+@media (prefers-reduced-motion: reduce) { .confirm-dialog[open] { animation: none; } }
+.confirm-body { padding: 24px; display: grid; gap: 10px; }
+.confirm-body h2 { margin: 0; font-family: var(--font-display); font-size: 1.6rem; font-weight: 600; line-height: 1.2; }
+.confirm-body p { margin: 0; line-height: 1.5; }
+.confirm-actions { display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+@media (max-width: 420px) { .confirm-actions button { flex: 1; } }
 
 /* Paquetes (inicio) */
 .plans { list-style: none; padding: 0; margin: 0; display: grid; gap: 8px; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }

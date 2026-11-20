@@ -9,11 +9,13 @@ import InvitationsPanel from '../components/InvitationsPanel'
 import StaffAccessPanel from '../components/StaffAccessPanel'
 import { formatDateTime } from '../lib/dates'
 import { plural } from '../lib/text'
+import { useConfirm } from '../lib/confirm'
 
 export default function EventPage() {
   const { id = '' } = useParams()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+  const confirm = useConfirm()
   const [editing, setEditing] = useState(false)
 
   const event = useQuery({ queryKey: ['event', id], queryFn: () => getEvent(id) })
@@ -129,8 +131,15 @@ export default function EventPage() {
                 <button
                   className="danger"
                   disabled={remove.isPending}
-                  onClick={() => {
-                    if (confirm(`¿Eliminar "${ev.title}" y todas sus invitaciones? No se puede deshacer.`))
+                  onClick={async () => {
+                    if (
+                      await confirm({
+                        title: `¿Eliminar "${ev.title}"?`,
+                        message: 'Se borrará el evento con todos sus datos. No se puede deshacer.',
+                        confirmLabel: 'Eliminar evento',
+                        danger: true,
+                      })
+                    )
                       remove.mutate()
                   }}
                 >

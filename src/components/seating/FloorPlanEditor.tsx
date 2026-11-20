@@ -14,6 +14,7 @@ import {
 } from '../../api/seating'
 import { clamp, seatPositions, tableSize } from './geometry'
 import { useThemeColors, type ThemeColors } from './useThemeColors'
+import { useConfirm } from '../../lib/confirm'
 
 interface DraftTable {
   key: string
@@ -42,6 +43,7 @@ let newKey = 0
 
 export default function FloorPlanEditor({ eventId, seating, onSaved, onDirtyChange }: Props) {
   const colors = useThemeColors()
+  const confirm = useConfirm()
   const [layout, setLayout] = useState<SeatingLayout>(seating.layout)
   const [tables, setTables] = useState<DraftTable[]>(() => toDrafts(seating))
   const [selected, setSelected] = useState<Selection>(null)
@@ -107,11 +109,20 @@ export default function FloorPlanEditor({ eventId, seating, onSaved, onDirtyChan
     setSelected({ type: 'element', key: id })
   }
 
-  const removeSelected = () => {
+  const removeSelected = async () => {
     if (!selected) return
     if (selected.type === 'table') {
       const t = tables.find((x) => x.key === selected.key)
-      if (t && t.seated > 0 && !confirm(`La mesa ${t.number} tiene ${t.seated} invitados sentados. Al guardar quedarán sin mesa. ¿Eliminarla?`))
+      if (
+        t &&
+        t.seated > 0 &&
+        !(await confirm({
+          title: `¿Eliminar la mesa ${t.number}?`,
+          message: `Tiene ${t.seated} ${t.seated === 1 ? 'invitado sentado' : 'invitados sentados'}. Al guardar el plano quedarán sin mesa.`,
+          confirmLabel: 'Eliminar mesa',
+          danger: true,
+        }))
+      )
         return
       setTables((ts) => ts.filter((x) => x.key !== selected.key))
     } else {

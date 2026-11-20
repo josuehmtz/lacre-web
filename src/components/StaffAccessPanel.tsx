@@ -8,6 +8,7 @@ import {
   type CreatedStaffAccess,
 } from '../api/staff'
 import { formatDateTime } from '../lib/dates'
+import { useConfirm } from '../lib/confirm'
 
 interface Props {
   eventId: string
@@ -18,6 +19,7 @@ interface Props {
 /** El cliente crea accesos (link + PIN) para que sus hostess escaneen los QR el día del evento. */
 export default function StaffAccessPanel({ eventId, eventTitle, readOnly }: Props) {
   const queryClient = useQueryClient()
+  const confirm = useConfirm()
   const [label, setLabel] = useState('')
   const [created, setCreated] = useState<CreatedStaffAccess | null>(null)
   const [copied, setCopied] = useState(false)
@@ -127,8 +129,15 @@ export default function StaffAccessPanel({ eventId, eventTitle, readOnly }: Prop
                 <button
                   className="danger small"
                   disabled={remove.isPending}
-                  onClick={() => {
-                    if (confirm(`¿Eliminar el acceso de ${acc.label}? Su sesión se cerrará de inmediato.`))
+                  onClick={async () => {
+                    if (
+                      await confirm({
+                        title: `¿Eliminar el acceso de ${acc.label}?`,
+                        message: 'Su sesión se cerrará de inmediato y ya no podrá escanear invitaciones. Las entradas que registró se conservan.',
+                        confirmLabel: 'Eliminar acceso',
+                        danger: true,
+                      })
+                    )
                       remove.mutate(acc.id)
                   }}
                 >

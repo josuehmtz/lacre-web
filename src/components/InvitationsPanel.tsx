@@ -14,6 +14,7 @@ import {
   type SaveInvitation,
 } from '../api/invitations'
 import { whatsAppLink } from '../lib/whatsapp'
+import { useConfirm } from '../lib/confirm'
 
 interface Props {
   eventId: string
@@ -37,6 +38,7 @@ const shortDate = new Intl.DateTimeFormat('es-MX', { day: 'numeric', month: 'lon
 
 export default function InvitationsPanel({ eventId, eventTitle, rsvpDeadline, remainingPasses, readOnly }: Props) {
   const queryClient = useQueryClient()
+  const confirm = useConfirm()
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState<Filter>('all')
   const [row, setRow] = useState<RowMode>(null)
@@ -233,8 +235,16 @@ export default function InvitationsPanel({ eventId, eventTitle, rsvpDeadline, re
                           <button
                             className="danger small"
                             disabled={remove.isPending}
-                            onClick={() => {
-                              if (confirm(`¿Eliminar la invitación "${inv.displayName}"?`)) remove.mutate(inv.id)
+                            onClick={async () => {
+                              if (
+                                await confirm({
+                                  title: `¿Eliminar la invitación "${inv.displayName}"?`,
+                                  message: 'Su link y su QR dejarán de funcionar. No se puede deshacer.',
+                                  confirmLabel: 'Eliminar invitación',
+                                  danger: true,
+                                })
+                              )
+                                remove.mutate(inv.id)
                             }}
                           >
                             Eliminar

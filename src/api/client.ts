@@ -17,7 +17,8 @@ interface ProblemDetails {
 async function readError(res: Response): Promise<string> {
   try {
     const p = (await res.json()) as ProblemDetails
-    if (p.errors) return Object.values(p.errors).flat().join(' ')
+    // Sin repetidos: p. ej. "usuario duplicado" y "correo duplicado" dicen lo mismo.
+    if (p.errors) return [...new Set(Object.values(p.errors).flat())].join(' ')
     return p.detail ?? p.title ?? `Error ${res.status}`
   } catch {
     return `Error ${res.status}`

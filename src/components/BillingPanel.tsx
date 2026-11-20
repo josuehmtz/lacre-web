@@ -11,10 +11,12 @@ import {
   type Billing,
 } from '../api/billing'
 import { formatDateTime } from '../lib/dates'
+import { useConfirm } from '../lib/confirm'
 
 /** Paquete del evento: comprar (publica el evento) o mejorar pagando la diferencia. */
 export default function BillingPanel({ eventId }: { eventId: string }) {
   const queryClient = useQueryClient()
+  const confirm = useConfirm()
   const [params, setParams] = useSearchParams()
   // Al regresar de Stripe la URL trae ?pago=exito&session_id=... o ?pago=cancelado
   const [returned] = useState(() => ({ result: params.get('pago'), sessionId: params.get('session_id') }))
@@ -150,8 +152,14 @@ export default function BillingPanel({ eventId }: { eventId: string }) {
                 {byAgreement ? (
                   <button
                     disabled={!p.available || agreement.isPending}
-                    onClick={() => {
-                      if (confirm(`¿Cambiar a paquete ${p.name} por el convenio de ${b.agreementVenue}?`))
+                    onClick={async () => {
+                      if (
+                        await confirm({
+                          title: `¿Cambiar a paquete ${p.name}?`,
+                          message: `Se aplicará por el convenio de ${b.agreementVenue}, sin pago en línea. El evento podrá tener hasta ${p.maxPasses} invitados.`,
+                          confirmLabel: 'Cambiar paquete',
+                        })
+                      )
                         agreement.mutate(p.code)
                     }}
                   >
