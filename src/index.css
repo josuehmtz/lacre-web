@@ -445,6 +445,26 @@ td.phone { white-space: nowrap; }
 .result-facts dd { margin: 0; font-size: 1.4rem; font-weight: 600; }
 .result-warning { margin: 0; padding: 8px 10px; border-radius: 8px; background: var(--warn-soft); }
 .result-guests { list-style: none; padding: 0; margin: 0; display: grid; gap: 4px; }
+
+/* Quiénes llegaron (estación de hostess) */
+.arrivals { border: 0; padding: 0; margin: 0; display: grid; gap: 6px; min-width: 0; }
+.arrivals-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; width: 100%; padding: 0; font-weight: 600; }
+.arrivals-list { list-style: none; padding: 0; margin: 0; display: grid; gap: 2px; }
+.arrivals-list li > label, .arrivals-list li.arrived {
+  display: grid; grid-template-columns: 28px 1fr auto; align-items: center; gap: 8px;
+  padding: 8px 6px; border-radius: 8px; min-height: 44px;
+}
+.arrivals-list li > label { cursor: pointer; }
+.arrivals-list li > label:hover { background: var(--surface-2); }
+.arrivals-list input[type='checkbox'] { width: 22px; height: 22px; margin: 0; accent-color: var(--accent); }
+.arrivals-list li.arrived { color: var(--text-muted); }
+.arrival-check { color: var(--ok); font-weight: 700; text-align: center; }
+.companions { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 6px; border-top: 1px solid var(--border); }
+.result-missing { margin: 0; padding: 8px 10px; border-radius: 8px; background: var(--muted-soft); }
+
+/* Panel: llegadas el día del evento */
+.guest-arrived { color: var(--ok); }
+.arrived-badge { background: var(--ok-soft); margin-left: 6px; }
 .result-guests li { display: flex; justify-content: space-between; gap: 8px; }
 .checkin-row { display: grid; grid-template-columns: auto 1fr; gap: 10px; align-items: center; }
 .stepper { display: flex; align-items: center; gap: 10px; }

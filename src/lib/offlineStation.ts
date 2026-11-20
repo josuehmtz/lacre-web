@@ -93,6 +93,9 @@ function warningsFor(inv: OfflineInvitation, checkedIn: number): string[] {
 
 export function toScanResult(inv: OfflineInvitation, queue: QueuedCheckIn[], token = ''): ScanResult {
   const checkIns = entriesFor(inv, queue)
+  // Marcadas en entradas que todavía no se suben: para este celular ya llegaron.
+  const pendingIds = new Set(checkIns.filter((c) => c.pending).flatMap((c) => queue.find((q) => q.id === c.id)?.guestIds ?? []))
+  const guests = inv.guests.map((g) => (g.arrived || pendingIds.has(g.id) ? { ...g, arrived: true } : g))
   const checkedIn = checkIns.reduce((s, c) => s + c.count, 0)
   const tables = [...new Set(inv.guests.map((g) => g.tableNumber).filter((n): n is number => n !== null))].sort((a, b) => a - b)
   return {
@@ -105,7 +108,7 @@ export function toScanResult(inv: OfflineInvitation, queue: QueuedCheckIn[], tok
     checkedIn,
     remaining: Math.max(0, inv.passes - checkedIn),
     tables,
-    guests: inv.guests,
+    guests,
     warnings: warningsFor(inv, checkedIn),
     checkIns,
     offline: true,
@@ -148,6 +151,6 @@ export function sessionFrom(snapshot: OfflineSnapshot, queue: QueuedCheckIn[]): 
   return { ...snapshot.session, checkedIn: snapshot.session.checkedIn + pending }
 }
 
-export function newQueuedCheckIn(invitationId: string, count: number): QueuedCheckIn {
-  return { id: crypto.randomUUID(), invitationId, count, at: new Date().toISOString() }
+export function newQueuedCheckIn(invitationId: string, count: number, guestIds: string[] = []): QueuedCheckIn {
+  return { id: crypto.randomUUID(), invitationId, count, at: new Date().toISOString(), guestIds }
 }

@@ -45,7 +45,7 @@ export interface OfflineStation {
   lookupId: (invitationId: string) => ScanResult | null
   search: (q: string) => SearchResult[]
   /** Registra la entrada en el celular. null si no hay lista guardada. */
-  enqueue: (invitationId: string, count: number) => QueuedCheckIn | null
+  enqueue: (invitationId: string, count: number, guestIds?: string[]) => QueuedCheckIn | null
   /** Quita una entrada que aún no se sube. false si ya estaba sincronizada. */
   removeQueued: (id: string) => boolean
   /** Guarda en la lista local lo que respondió el servidor (para que siga al día si se cae la señal). */
@@ -168,9 +168,9 @@ export function useOfflineStation(accessId: string): OfflineStation {
       snapshotRef.current ? findByQr(snapshotRef.current, queueRef.current, content) : null,
     lookupId: (id) => (snapshotRef.current ? findById(snapshotRef.current, queueRef.current, id) : null),
     search: (q) => (snapshotRef.current ? searchLocal(snapshotRef.current, queueRef.current, q) : []),
-    enqueue: (invitationId, count) => {
+    enqueue: (invitationId, count, guestIds = []) => {
       if (!snapshotRef.current) return null
-      const item = newQueuedCheckIn(invitationId, count)
+      const item = newQueuedCheckIn(invitationId, count, guestIds)
       setQueue((q) => [...q, item])
       return item
     },

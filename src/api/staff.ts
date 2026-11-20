@@ -51,8 +51,11 @@ export interface CheckInEntry {
 }
 
 export interface GuestSeat {
+  id: string
   name: string
   tableNumber: number | null
+  /** Ya entró (la hostess la marcó al registrar una entrada). */
+  arrived: boolean
 }
 
 export interface ScanResult {
@@ -107,6 +110,8 @@ export interface QueuedCheckIn {
   invitationId: string
   count: number
   at: string
+  /** Personas marcadas por nombre (el resto de count son acompañantes sin nombre). */
+  guestIds?: string[]
 }
 
 export type SyncStatus = 'applied' | 'exceeded' | 'duplicate' | 'notFound' | 'invalid'
@@ -135,7 +140,8 @@ export const staffLogin = (accessId: string, pin: string) => staffApi<void>('/st
 export const staffLogout = () => staffApi<void>('/staff/logout', 'POST')
 export const getStaffSession = () => staffApi<StaffSession>('/staff/me')
 export const scanCode = (content: string) => staffApi<ScanResult>('/staff/scan', 'POST', { content })
-export const checkIn = (token: string, count: number) => staffApi<ScanResult>('/staff/checkins', 'POST', { token, count })
+export const checkIn = (token: string, count: number, guestIds: string[] = []) =>
+  staffApi<ScanResult>('/staff/checkins', 'POST', { token, count, guestIds })
 export const undoCheckIn = (id: string) => staffApi<ScanResult>(`/staff/checkins/${id}`, 'DELETE')
 export const searchInvitations = (q: string) => staffApi<SearchResult[]>(`/staff/search?q=${encodeURIComponent(q)}`)
 export const getOfflineSnapshot = () =>

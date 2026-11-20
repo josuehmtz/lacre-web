@@ -24,7 +24,7 @@ interface Props {
   readOnly: boolean
 }
 
-type Filter = 'all' | RsvpStatus
+type Filter = 'all' | RsvpStatus | 'missing'
 type RowMode = { id: string; mode: 'edit' | 'rsvp' } | null
 
 const filterLabels: Record<Filter, string> = {
@@ -32,7 +32,11 @@ const filterLabels: Record<Filter, string> = {
   Pending: 'Pendientes',
   Confirmed: 'Confirmadas',
   Declined: 'No asistirán',
+  missing: 'Faltan por llegar',
 }
+
+/** Confirmada, pero todavía no entran todas sus personas confirmadas (el día del evento). */
+const isMissing = (i: Invitation) => i.rsvpStatus === 'Confirmed' && i.checkedIn < i.confirmedPasses
 
 const shortDate = new Intl.DateTimeFormat('es-MX', { day: 'numeric', month: 'long' })
 
@@ -96,11 +100,14 @@ export default function InvitationsPanel({ eventId, eventTitle, rsvpDeadline, re
     Pending: all.filter((i) => i.rsvpStatus === 'Pending').length,
     Confirmed: all.filter((i) => i.rsvpStatus === 'Confirmed').length,
     Declined: all.filter((i) => i.rsvpStatus === 'Declined').length,
+    missing: all.filter(isMissing).length,
   }
+  // "Faltan por llegar" solo tiene sentido cuando ya empezó a llegar gente.
+  const eventStarted = all.some((i) => i.checkedIn > 0)
   const term = search.trim().toLowerCase()
   const visible = all.filter(
     (i) =>
-      (filter === 'all' || i.rsvpStatus === filter) &&
+      (filter === 'all' || (filter === 'missing' ? isMissing(i) : i.rsvpStatus === filter)) &&
       (!term || i.displayName.toLowerCase().includes(term) || i.guestNames.some((n) => n.toLowerCase().includes(term))),
   )
 
@@ -132,7 +139,7 @@ export default function InvitationsPanel({ eventId, eventTitle, rsvpDeadline, re
 
       {all.length > 0 && (
         <div className="chips" role="tablist" aria-label="Filtrar por confirmación">
-          {(Object.keys(filterLabels) as Filter[]).map((f) => (
+          {(Object.keys(filterLabels) as Filter[]).filter((f) => f !== 'missing' || eventStarted).map((f) => (
             <button
               key={f}
               role="tab"
@@ -200,7 +207,17 @@ export default function InvitationsPanel({ eventId, eventTitle, rsvpDeadline, re
                     <td>
                       <div>{inv.displayName}</div>
                       {inv.rsvpStatus === 'Confirmed' && inv.guestNames.length > 0 && (
-                        <div className="muted small">{inv.guestNames.join(', ')}</div>
+                        <div className="muted small">
+                          {inv.checkedIn > 0
+                            ? inv.guestNames.map((n, i) => (
+                                <span key={i} className={inv.arrivedNames.includes(n) ? 'guest-arrived' : undefined}>
+                                  {i > 0 && ', '}
+                                  {inv.arrivedNames.includes(n) && '✓ '}
+                                  {n}
+                                </span>
+                              ))
+                            : inv.guestNames.join(', ')}
+                        </div>
                       )}
                       {inv.message && <div className="guest-message small">“{inv.message}”</div>}
                     </td>
@@ -211,6 +228,11 @@ export default function InvitationsPanel({ eventId, eventTitle, rsvpDeadline, re
                     <td className="hide-sm phone">{inv.phone ?? <span className="muted">—</span>}</td>
                     <td>
                       <span className={`badge rsvp-${inv.rsvpStatus.toLowerCase()}`}>{rsvpLabels[inv.rsvpStatus]}</span>
+                      {inv.checkedIn > 0 && (
+                        <span className="badge arrived-badge">
+                          Llegaron {inv.checkedIn}/{inv.rsvpStatus === 'Confirmed' ? inv.confirmedPasses : inv.passes}
+                        </span>
+                      )}
                     </td>
                     <td className="row-actions">
                       <a className="button secondary small" href={`/i/${inv.token}`} target="_blank" rel="noreferrer">

@@ -332,14 +332,33 @@ function ResultCard({ result, station, lastCheckInId, onChange, onNext }: {
 }) {
   const pendingConfirmed = Math.max(0, result.confirmedPasses - result.checkedIn)
   const suggested = Math.min(result.remaining, result.rsvpStatus === 'Confirmed' && pendingConfirmed > 0 ? pendingConfirmed : result.remaining)
+  // Sin nombres (no confirmó): solo cantidad, como siempre.
   const [count, setCount] = useState(Math.max(1, suggested))
+
+  // Con nombres: la hostess marca quiénes entran; los pases sin nombre cuentan como acompañantes.
+  const byName = result.guests.length > 0
+  const waiting = result.guests.filter((g) => !g.arrived)
+  const [selected, setSelected] = useState<Set<string>>(() => new Set())
+  const [companions, setCompanions] = useState(0)
+  const companionRoom = Math.max(0, result.remaining - waiting.length)
+  const total = byName ? selected.size + companions : count
+
+  const toggle = (id: string) =>
+    setSelected((s) => {
+      const next = new Set(s)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  const allSelected = waiting.length > 0 && waiting.every((g) => selected.has(g.id))
 
   /** Con señal se registra en el servidor (que evita rebasar pases entre puertas); sin ella, en el celular. */
   const register = useMutation({
     mutationFn: async (): Promise<{ r: ScanResult; id: string | null }> => {
+      const guestIds = byName ? [...selected] : []
       if (result.token && station.online) {
         try {
-          const r = await checkIn(result.token, count)
+          const r = await checkIn(result.token, total, guestIds)
           station.applyResult(r)
           return { r, id: r.checkIns[r.checkIns.length - 1]?.id ?? null }
         } catch (e) {
@@ -347,12 +366,16 @@ function ResultCard({ result, station, lastCheckInId, onChange, onNext }: {
           station.markOffline()
         }
       }
-      const item = station.enqueue(result.invitationId, count)
+      const item = station.enqueue(result.invitationId, total, guestIds)
       if (!item) throw new Error(NO_LIST)
       const local = station.lookupId(result.invitationId)!
       return { r: { ...local, token: result.token }, id: item.id }
     },
-    onSuccess: ({ r, id }) => onChange(r, id),
+    onSuccess: ({ r, id }) => {
+      setSelected(new Set())
+      setCompanions(0)
+      onChange(r, id)
+    },
   })
 
   const undo = useMutation({
@@ -376,6 +399,7 @@ function ResultCard({ result, station, lastCheckInId, onChange, onNext }: {
   const justRegistered = lastCheckInId !== null
   const savedOffline = justRegistered && result.checkIns.some((c) => c.id === lastCheckInId && c.pending)
   const full = result.remaining === 0
+  const canRegister = !justRegistered && !full
 
   return (
     <section className={`card result-card${justRegistered ? ' ok' : full ? ' full' : ''}`}>
@@ -407,30 +431,77 @@ function ResultCard({ result, station, lastCheckInId, onChange, onNext }: {
         </p>
       ))}
 
-      {result.guests.length > 0 && (
-        <ul className="result-guests">
-          {result.guests.map((g, i) => (
-            <li key={i}>
-              <span>{g.name}</span>
-              <span className="muted">{g.tableNumber ? `Mesa ${g.tableNumber}` : ''}</span>
-            </li>
-          ))}
-        </ul>
+      {byName && (
+        <fieldset className="arrivals" disabled={!canRegister}>
+          <legend className="arrivals-head">
+            <span>{canRegister ? '¿Quiénes están entrando?' : 'Personas'}</span>
+            {canRegister && waiting.length > 1 && (
+              <button
+                type="button"
+                className="link small"
+                onClick={() => setSelected(allSelected ? new Set() : new Set(waiting.map((g) => g.id)))}
+              >
+                {allSelected ? 'Quitar todos' : `Marcar a todos (${waiting.length})`}
+              </button>
+            )}
+          </legend>
+          <ul className="arrivals-list">
+            {result.guests.map((g) =>
+              g.arrived ? (
+                <li key={g.id} className="arrived">
+                  <span className="arrival-check" aria-hidden>✓</span>
+                  <span>{g.name}</span>
+                  <span className="muted">{g.tableNumber ? `Mesa ${g.tableNumber} · ` : ''}ya entró</span>
+                </li>
+              ) : (
+                <li key={g.id}>
+                  <label>
+                    <input type="checkbox" checked={selected.has(g.id)} onChange={() => toggle(g.id)} />
+                    <span>{g.name}</span>
+                    <span className="muted">{g.tableNumber ? `Mesa ${g.tableNumber}` : ''}</span>
+                  </label>
+                </li>
+              ),
+            )}
+          </ul>
+          {canRegister && companionRoom > 0 && (
+            <div className="companions">
+              <span>Acompañantes sin nombre</span>
+              <div className="stepper" aria-label="Acompañantes sin nombre">
+                <button type="button" className="secondary" onClick={() => setCompanions((c) => Math.max(0, c - 1))} disabled={companions <= 0} aria-label="Menos acompañantes">
+                  −
+                </button>
+                <span>{companions}</span>
+                <button type="button" className="secondary" onClick={() => setCompanions((c) => Math.min(companionRoom, c + 1))} disabled={companions >= companionRoom} aria-label="Más acompañantes">
+                  +
+                </button>
+              </div>
+            </div>
+          )}
+        </fieldset>
       )}
 
-      {!justRegistered && !full && (
+      {justRegistered && waiting.length > 0 && result.remaining > 0 && (
+        <p className="result-missing">
+          Faltan: {waiting.map((g) => (g.tableNumber ? `${g.name} (mesa ${g.tableNumber})` : g.name)).join(', ')}
+        </p>
+      )}
+
+      {canRegister && (
         <div className="checkin-row">
-          <div className="stepper" aria-label="Personas que entran">
-            <button className="secondary" onClick={() => setCount((c) => Math.max(1, c - 1))} disabled={count <= 1} aria-label="Menos">
-              −
-            </button>
-            <span>{count}</span>
-            <button className="secondary" onClick={() => setCount((c) => Math.min(result.remaining, c + 1))} disabled={count >= result.remaining} aria-label="Más">
-              +
-            </button>
-          </div>
-          <button className="big" onClick={() => register.mutate()} disabled={register.isPending}>
-            {register.isPending ? 'Registrando…' : `Registrar entrada (${count})`}
+          {!byName && (
+            <div className="stepper" aria-label="Personas que entran">
+              <button className="secondary" onClick={() => setCount((c) => Math.max(1, c - 1))} disabled={count <= 1} aria-label="Menos">
+                −
+              </button>
+              <span>{count}</span>
+              <button className="secondary" onClick={() => setCount((c) => Math.min(result.remaining, c + 1))} disabled={count >= result.remaining} aria-label="Más">
+                +
+              </button>
+            </div>
+          )}
+          <button className="big" onClick={() => register.mutate()} disabled={register.isPending || total < 1}>
+            {register.isPending ? 'Registrando…' : total < 1 ? 'Marca quién entra' : `Registrar entrada (${total})`}
           </button>
         </div>
       )}

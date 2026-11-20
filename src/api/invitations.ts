@@ -19,6 +19,10 @@ export interface Invitation {
   respondedAt: string | null
   message: string | null
   guestNames: string[]
+  /** Personas que ya entraron el día del evento (todas, con o sin nombre). */
+  checkedIn: number
+  /** Las que la hostess marcó por nombre. */
+  arrivedNames: string[]
 }
 
 export interface ManualRsvp {
