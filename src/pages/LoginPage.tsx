@@ -20,6 +20,9 @@ export default function LoginPage() {
   const [password, setPassword] = useState('')
   const providers = useQuery({ queryKey: ['auth-providers'], queryFn: getProviders, staleTime: Infinity })
   const urlError = params.get('error')
+  // Solo rutas internas del panel (evita redirigir a sitios ajenos).
+  const requested = params.get('returnUrl')
+  const returnUrl = requested && requested.startsWith('/app') ? requested : '/app'
 
   const submit = useMutation({
     mutationFn: async () => {
@@ -29,7 +32,7 @@ export default function LoginPage() {
     onSuccess: () => {
       // Descarta un "sin sesión" cacheado de una visita anterior a /app.
       queryClient.removeQueries({ queryKey: ['me'] })
-      navigate('/app')
+      navigate(returnUrl)
     },
   })
 
@@ -89,7 +92,7 @@ export default function LoginPage() {
 
           {providers.data?.google && (
             <>
-              <a className="google-button" href={googleLoginUrl('/app')}>
+              <a className="google-button" href={googleLoginUrl(returnUrl)}>
                 <GoogleIcon />
                 Continuar con Google
               </a>

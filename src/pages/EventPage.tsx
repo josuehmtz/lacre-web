@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
 import { deleteEvent, eventStatusLabels, eventTypeLabels, getEvent, updateEvent, type SaveEvent } from '../api/events'
 import BillingPanel from '../components/BillingPanel'
+import ClientLinkPanel from '../components/ClientLinkPanel'
 import EventForm from '../components/EventForm'
 import InvitationsPanel from '../components/InvitationsPanel'
 import StaffAccessPanel from '../components/StaffAccessPanel'
@@ -45,6 +46,8 @@ export default function EventPage() {
 
   const ev = event.data
   const readOnly = ev.status === 'Archived'
+  // Pago pendiente: solo se ven los datos del evento y el pago.
+  const locked = ev.status === 'Draft'
   const remaining = Math.max(0, ev.passLimit - ev.totalPasses)
   const usage = ev.passLimit > 0 ? Math.min(100, (ev.totalPasses / ev.passLimit) * 100) : 0
 
@@ -82,41 +85,53 @@ export default function EventPage() {
             <span className="badge">{eventStatusLabels[ev.status]}</span>
           </div>
 
-          <div className="meter" aria-label="Invitados registrados">
-            <div className="meter-label">
-              <span>
-                <strong>{ev.totalPasses}</strong> de {ev.passLimit} invitados
-              </span>
-              <span className="muted">{plural(ev.invitationCount, 'invitación', 'invitaciones')}</span>
+          {ev.managedBy && (
+            <p className="muted small">
+              Evento con convenio de <strong>{ev.managedBy}</strong>.
+            </p>
+          )}
+
+          {locked ? (
+            <p className="notice notice-info">
+              Completa el pago de tu paquete para desbloquear el diseño de la invitación, la lista de invitados, las
+              mesas y el acceso de hostess.
+            </p>
+          ) : (
+            <div className="meter" aria-label="Invitados registrados">
+              <div className="meter-label">
+                <span>
+                  <strong>{ev.totalPasses}</strong> de {ev.passLimit} invitados
+                </span>
+                <span className="muted">{plural(ev.invitationCount, 'invitación', 'invitaciones')}</span>
+              </div>
+              <div className="meter-track">
+                <div className={`meter-fill${usage >= 100 ? ' full' : ''}`} style={{ width: `${usage}%` }} />
+              </div>
             </div>
-            <div className="meter-track">
-              <div className={`meter-fill${usage >= 100 ? ' full' : ''}`} style={{ width: `${usage}%` }} />
-            </div>
-            {ev.status === 'Draft' && (
-              <p className="muted small">
-                Mientras el evento está en borrador puedes registrar hasta {ev.passLimit} invitados. Al pagar eliges
-                el paquete según tu total.
-              </p>
-            )}
-          </div>
+          )}
 
           {!readOnly && (
             <div className="actions">
-              <Link to={`/app/events/${ev.id}/design`} className="button">
-                Diseñar invitación
-              </Link>
-              <Link to={`/app/events/${ev.id}/seating`} className="button">
-                Mesas
-              </Link>
+              {!locked && (
+                <>
+                  <Link to={`/app/events/${ev.id}/design`} className="button">
+                    Diseñar invitación
+                  </Link>
+                  <Link to={`/app/events/${ev.id}/seating`} className="button">
+                    Mesas
+                  </Link>
+                </>
+              )}
               <button className="secondary" onClick={() => setEditing(true)}>
                 Editar datos
               </button>
-              {ev.status === 'Draft' && (
+              {locked && !ev.managedBy && (
                 <button
                   className="danger"
                   disabled={remove.isPending}
                   onClick={() => {
-                    if (confirm(`¿Eliminar "${ev.title}" y todas sus invitaciones? No se puede deshacer.`)) remove.mutate()
+                    if (confirm(`¿Eliminar "${ev.title}" y todas sus invitaciones? No se puede deshacer.`))
+                      remove.mutate()
                   }}
                 >
                   Eliminar evento
@@ -130,40 +145,52 @@ export default function EventPage() {
 
       <BillingPanel eventId={ev.id} />
 
-      {ev.invitationCount > 0 && (
-        <section className="stats" aria-label="Resumen de confirmaciones">
-          <div className="stat">
-            <span className="stat-value">{ev.rsvp.confirmedPasses}</span>
-            <span className="stat-label">personas confirmadas</span>
-            <span className="muted small">{plural(ev.rsvp.confirmed, 'invitación', 'invitaciones')}</span>
-          </div>
-          <div className="stat">
-            <span className="stat-value">{ev.rsvp.pendingPasses}</span>
-            <span className="stat-label">personas sin responder</span>
-            <span className="muted small">{plural(ev.rsvp.pending, 'invitación', 'invitaciones')}</span>
-          </div>
-          <div className="stat">
-            <span className="stat-value">{ev.rsvp.declined}</span>
-            <span className="stat-label">{ev.rsvp.declined === 1 ? 'invitación no asistirá' : 'invitaciones no asistirán'}</span>
-          </div>
-          {ev.rsvp.checkedIn > 0 && (
-            <div className="stat">
-              <span className="stat-value">{ev.rsvp.checkedIn}</span>
-              <span className="stat-label">{ev.rsvp.checkedIn === 1 ? 'persona ha llegado' : 'personas han llegado'}</span>
-            </div>
-          )}
-        </section>
+      {ev.isVenueStaff && ev.managedBy && (
+        <ClientLinkPanel eventId={ev.id} eventTitle={ev.title} managedBy={ev.managedBy} clientEmail={ev.clientEmail} />
       )}
 
-      <InvitationsPanel
-        eventId={ev.id}
-        eventTitle={ev.title}
-        rsvpDeadline={ev.rsvpDeadline}
-        remainingPasses={remaining}
-        readOnly={readOnly}
-      />
+      {locked ? null : (
+        <>
+          {ev.invitationCount > 0 && (
+            <section className="stats" aria-label="Resumen de confirmaciones">
+              <div className="stat">
+                <span className="stat-value">{ev.rsvp.confirmedPasses}</span>
+                <span className="stat-label">personas confirmadas</span>
+                <span className="muted small">{plural(ev.rsvp.confirmed, 'invitación', 'invitaciones')}</span>
+              </div>
+              <div className="stat">
+                <span className="stat-value">{ev.rsvp.pendingPasses}</span>
+                <span className="stat-label">personas sin responder</span>
+                <span className="muted small">{plural(ev.rsvp.pending, 'invitación', 'invitaciones')}</span>
+              </div>
+              <div className="stat">
+                <span className="stat-value">{ev.rsvp.declined}</span>
+                <span className="stat-label">
+                  {ev.rsvp.declined === 1 ? 'invitación no asistirá' : 'invitaciones no asistirán'}
+                </span>
+              </div>
+              {ev.rsvp.checkedIn > 0 && (
+                <div className="stat">
+                  <span className="stat-value">{ev.rsvp.checkedIn}</span>
+                  <span className="stat-label">
+                    {ev.rsvp.checkedIn === 1 ? 'persona ha llegado' : 'personas han llegado'}
+                  </span>
+                </div>
+              )}
+            </section>
+          )}
 
-      <StaffAccessPanel eventId={ev.id} eventTitle={ev.title} readOnly={readOnly} />
+          <InvitationsPanel
+            eventId={ev.id}
+            eventTitle={ev.title}
+            rsvpDeadline={ev.rsvpDeadline}
+            remainingPasses={remaining}
+            readOnly={readOnly}
+          />
+
+          <StaffAccessPanel eventId={ev.id} eventTitle={ev.title} readOnly={readOnly} />
+        </>
+      )}
     </main>
   )
 }

@@ -1,7 +1,15 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router'
-import { formatMxn, getBilling, orderStatusLabels, startCheckout, syncCheckout, type Billing } from '../api/billing'
+import {
+  formatMxn,
+  getBilling,
+  orderStatusLabels,
+  setAgreementPlan,
+  startCheckout,
+  syncCheckout,
+  type Billing,
+} from '../api/billing'
 import { formatDateTime } from '../lib/dates'
 
 /** Paquete del evento: comprar (publica el evento) o mejorar pagando la diferencia. */
@@ -26,6 +34,16 @@ export default function BillingPanel({ eventId }: { eventId: string }) {
     onSuccess: ({ url }) => window.location.assign(url),
   })
 
+  // Personal del salón: cambia el paquete dentro del convenio, sin pago en línea.
+  const agreement = useMutation({
+    mutationFn: (planCode: string) => setAgreementPlan(eventId, planCode),
+    onSuccess: (b: Billing) => {
+      queryClient.setQueryData(['billing', eventId], b)
+      refreshEvent()
+      setNotice({ kind: 'ok', text: `Paquete actualizado a ${b.currentPlan} por convenio.` })
+    },
+  })
+
   const sync = useMutation({
     mutationFn: (sessionId: string) => syncCheckout(eventId, sessionId),
     onSuccess: (b: Billing) => {
@@ -34,11 +52,18 @@ export default function BillingPanel({ eventId }: { eventId: string }) {
       const last = b.orders[0]
       setNotice(
         last?.status === 'Paid'
-          ? { kind: 'ok', text: '¡Pago recibido! Tu evento está publicado: tus invitados ya pueden confirmar y recibir su QR.' }
-          : { kind: 'info', text: 'Tu pago está pendiente. Si elegiste OXXO, el evento se publicará en cuanto se acredite (puede tardar hasta un día hábil).' },
+          ? {
+              kind: 'ok',
+              text: '¡Pago recibido! Tu evento está publicado: tus invitados ya pueden confirmar y recibir su QR.',
+            }
+          : {
+              kind: 'info',
+              text: 'Tu pago está pendiente. Si elegiste OXXO, el evento se publicará en cuanto se acredite (puede tardar hasta un día hábil).',
+            },
       )
     },
-    onError: () => setNotice({ kind: 'error', text: 'No pudimos confirmar el pago. Si se cobró, se reflejará en unos minutos.' }),
+    onError: () =>
+      setNotice({ kind: 'error', text: 'No pudimos confirmar el pago. Si se cobró, se reflejará en unos minutos.' }),
   })
 
   const handled = useRef(false)
@@ -48,11 +73,14 @@ export default function BillingPanel({ eventId }: { eventId: string }) {
     handled.current = true
     if (returned.result === 'exito' && returned.sessionId) syncMutate(returned.sessionId)
     // Limpia la URL para que recargar la página no repita el aviso.
-    setParams((p) => {
-      p.delete('pago')
-      p.delete('session_id')
-      return p
-    }, { replace: true })
+    setParams(
+      (p) => {
+        p.delete('pago')
+        p.delete('session_id')
+        return p
+      },
+      { replace: true },
+    )
   }, [returned, setParams, syncMutate])
 
   if (billing.isPending) return null
@@ -62,6 +90,7 @@ export default function BillingPanel({ eventId }: { eventId: string }) {
   const draft = b.eventStatus === 'Draft'
   const pendingOrder = b.orders.find((o) => o.status === 'Pending')
   const upgrades = b.options.filter((o) => o.available)
+  const byAgreement = b.agreementVenue !== null
 
   return (
     <section className="card billing">
@@ -70,12 +99,13 @@ export default function BillingPanel({ eventId }: { eventId: string }) {
           <h2>Paquete y pago</h2>
           {draft ? (
             <p className="muted small">
-              Tu evento está en <strong>borrador</strong>: puedes diseñar, cargar invitados y ver la invitación, pero tus
-              invitados no podrán confirmar ni recibir su QR hasta que elijas un paquete.
+              Elige tu paquete y completa el pago. En cuanto se acredite se desbloquean el diseño de la invitación, la
+              lista de invitados y las mesas.
             </p>
           ) : (
             <p className="muted small">
               Paquete <strong>{b.currentPlan}</strong> · hasta {b.maxPasses} invitados ({b.totalPasses} registrados).
+              {b.managedBy && <> Incluido en el convenio de {b.managedBy}.</>}
             </p>
           )}
         </div>
@@ -89,13 +119,14 @@ export default function BillingPanel({ eventId }: { eventId: string }) {
       )}
       {sync.isPending && <p className="muted">Confirmando tu pago…</p>}
       {checkout.error && <p className="error">{checkout.error.message}</p>}
-      {!b.paymentsEnabled && (
+      {agreement.error && <p className="error">{agreement.error.message}</p>}
+      {!b.paymentsEnabled && !byAgreement && (
         <p className="notice notice-info">Por el momento no es posible pagar. Inténtalo de nuevo más tarde.</p>
       )}
       {pendingOrder && !notice && (
         <p className="notice notice-info">
-          Tienes un pago pendiente de {formatMxn(pendingOrder.amountMxn)} (paquete {pendingOrder.planName}). Si pagaste en
-          OXXO, se reflejará en cuanto se acredite.
+          Tienes un pago pendiente de {formatMxn(pendingOrder.amountMxn)} (paquete {pendingOrder.planName}). Si pagaste
+          en OXXO, se reflejará en cuanto se acredite.
         </p>
       )}
 
@@ -107,23 +138,45 @@ export default function BillingPanel({ eventId }: { eventId: string }) {
               <div key={p.code} className={`plan-option${p.available ? '' : ' disabled'}`}>
                 <strong>{p.name}</strong>
                 <span className="muted small">Hasta {p.maxPasses} invitados</span>
-                <span className="plan-price">
-                  {formatMxn(p.amountToPay)}
-                  {!draft && <span className="muted small"> (diferencia)</span>}
-                </span>
+                {byAgreement ? (
+                  <span className="muted small">Incluido en el convenio</span>
+                ) : (
+                  <span className="plan-price">
+                    {formatMxn(p.amountToPay)}
+                    {!draft && <span className="muted small"> (diferencia)</span>}
+                  </span>
+                )}
                 {p.reason && <span className="muted small">{p.reason}</span>}
-                <button
-                  disabled={!p.available || !b.paymentsEnabled || checkout.isPending}
-                  onClick={() => checkout.mutate(p.code)}
-                >
-                  {checkout.isPending && checkout.variables === p.code ? 'Abriendo pago…' : draft ? 'Elegir y pagar' : 'Mejorar'}
-                </button>
+                {byAgreement ? (
+                  <button
+                    disabled={!p.available || agreement.isPending}
+                    onClick={() => {
+                      if (confirm(`¿Cambiar a paquete ${p.name} por el convenio de ${b.agreementVenue}?`))
+                        agreement.mutate(p.code)
+                    }}
+                  >
+                    {agreement.isPending && agreement.variables === p.code ? 'Aplicando…' : 'Aplicar por convenio'}
+                  </button>
+                ) : (
+                  <button
+                    disabled={!p.available || !b.paymentsEnabled || checkout.isPending}
+                    onClick={() => checkout.mutate(p.code)}
+                  >
+                    {checkout.isPending && checkout.variables === p.code
+                      ? 'Abriendo pago…'
+                      : draft
+                        ? 'Elegir y pagar'
+                        : 'Mejorar'}
+                  </button>
+                )}
               </div>
             ))}
           </div>
-          <p className="muted small">
-            Paga con tarjeta de crédito o débito, o en efectivo en OXXO. Es un solo pago por tu evento.
-          </p>
+          {!byAgreement && (
+            <p className="muted small">
+              Paga con tarjeta de crédito o débito, o en efectivo en OXXO. Es un solo pago por tu evento.
+            </p>
+          )}
         </>
       )}
 
@@ -134,7 +187,7 @@ export default function BillingPanel({ eventId }: { eventId: string }) {
             {b.orders.map((o) => (
               <li key={o.id}>
                 <span>
-                  {o.planName} · {formatMxn(o.amountMxn)}
+                  {o.planName} · {o.source === 'Agreement' ? 'convenio' : formatMxn(o.amountMxn)}
                 </span>
                 <span className="muted small">
                   {orderStatusLabels[o.status]} · {formatDateTime(o.paidAt ?? o.createdAt)}

@@ -1,27 +1,26 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router'
-import { createEvent, eventStatusLabels, eventTypeLabels, getEvents } from '../api/events'
-import EventForm from '../components/EventForm'
+import { Link } from 'react-router'
+import { eventStatusLabels, eventTypeLabels, getEvents } from '../api/events'
+import { getAccount, type MyVenue } from '../api/venues'
+import NewEventCard from '../components/NewEventCard'
 import { formatDateTime } from '../lib/dates'
 import { plural } from '../lib/text'
 import { Seal } from '../components/brand/Logo'
 
 const monthFmt = new Intl.DateTimeFormat('es-MX', { month: 'short' })
 
-export default function DashboardPage() {
-  const navigate = useNavigate()
-  const queryClient = useQueryClient()
-  const [creating, setCreating] = useState(false)
-  const events = useQuery({ queryKey: ['events'], queryFn: getEvents })
+/** null = cerrado; 'client' = compra directa; MyVenue = alta por convenio de ese salón. */
+type Creating = null | 'client' | MyVenue
 
-  const create = useMutation({
-    mutationFn: createEvent,
-    onSuccess: (ev) => {
-      queryClient.invalidateQueries({ queryKey: ['events'] })
-      navigate(`/app/events/${ev.id}`)
-    },
-  })
+export default function DashboardPage() {
+  const [creating, setCreating] = useState<Creating>(null)
+  const events = useQuery({ queryKey: ['events'], queryFn: getEvents })
+  const account = useQuery({ queryKey: ['account'], queryFn: getAccount })
+
+  const activeVenues = account.data?.venues.filter((v) => v.agreementActive) ?? []
+  const isVenueStaff = (account.data?.venues.length ?? 0) > 0
+  const pendingPayment = events.data?.find((e) => e.status === 'Draft' && !e.managedBy)
 
   return (
     <main className="page">
@@ -30,37 +29,61 @@ export default function DashboardPage() {
           <p className="eyebrow">Tu panel</p>
           <h1>Mis eventos</h1>
         </div>
-        {!creating && events.data && events.data.length > 0 && (
-          <button onClick={() => setCreating(true)}>+ Nuevo evento</button>
+        {!creating && (
+          <div className="actions">
+            {activeVenues.map((v) => (
+              <button key={v.id} onClick={() => setCreating(v)}>
+                + Evento por convenio{activeVenues.length > 1 ? ` · ${v.name}` : ''}
+              </button>
+            ))}
+            {!isVenueStaff && events.data && events.data.length > 0 && !pendingPayment && (
+              <button onClick={() => setCreating('client')}>+ Nuevo evento</button>
+            )}
+          </div>
         )}
       </div>
 
+      {account.data?.venues
+        .filter((v) => !v.agreementActive)
+        .map((v) => (
+          <p key={v.id} className="notice notice-info">
+            El convenio de <strong>{v.name}</strong> no está vigente, así que por ahora no puedes dar de alta eventos
+            nuevos. Tus eventos existentes siguen disponibles.
+          </p>
+        ))}
+
+      {pendingPayment && !creating && (
+        <p className="notice notice-info">
+          <strong>{pendingPayment.title}</strong> tiene el pago pendiente.{' '}
+          <Link to={`/app/events/${pendingPayment.id}`}>Completa tu pago</Link> para empezar a diseñar tu invitación y
+          cargar a tus invitados.
+        </p>
+      )}
+
       {creating && (
-        <section className="card">
-          <h2>Nuevo evento</h2>
-          <EventForm
-            submitLabel="Crear evento"
-            pending={create.isPending}
-            error={create.error?.message}
-            onSubmit={(data) => create.mutate(data)}
-            onCancel={() => setCreating(false)}
-          />
-        </section>
+        <NewEventCard venue={creating === 'client' ? undefined : creating} onCancel={() => setCreating(null)} />
       )}
 
       {events.isPending && <p>Cargando…</p>}
       {events.isError && <p className="error">{events.error.message}</p>}
-      {events.data?.length === 0 && !creating && (
+      {events.data?.length === 0 && !creating && !isVenueStaff && (
         <section className="empty-state card">
           <Seal size={72} />
           <h2>Tu primera celebración empieza aquí</h2>
           <p className="muted">
-            Crea tu evento, diseña la invitación y carga a tus invitados. Puedes hacerlo todo gratis y publicarlo cuando
-            estés listo.
+            Elige tu paquete y crea tu evento. En cuanto se acredite tu pago podrás diseñar la invitación, cargar a tus
+            invitados y acomodar las mesas.
           </p>
-          <button className="big" onClick={() => setCreating(true)}>
+          <button className="big" onClick={() => setCreating('client')}>
             Crear mi primer evento
           </button>
+        </section>
+      )}
+      {events.data?.length === 0 && !creating && isVenueStaff && (
+        <section className="empty-state card">
+          <Seal size={72} />
+          <h2>Aún no hay eventos del salón</h2>
+          <p className="muted">Da de alta el primer evento con el paquete que contrató tu cliente.</p>
         </section>
       )}
 
@@ -80,6 +103,9 @@ export default function DashboardPage() {
                     {eventTypeLabels[ev.type]} · {formatDateTime(ev.startsAt)}
                     {ev.venueName && ` · ${ev.venueName}`}
                   </span>
+                  {ev.managedBy && isVenueStaff && !ev.hasClient && (
+                    <span className="muted small">Sin cliente vinculado</span>
+                  )}
                 </div>
                 <div className="event-card-stats">
                   <span className={`badge status-${ev.status.toLowerCase()}`}>{eventStatusLabels[ev.status]}</span>

@@ -18,6 +18,7 @@ export interface Order {
   planName: string
   amountMxn: number
   status: OrderStatus
+  source: 'Stripe' | 'Agreement'
   createdAt: string
   paidAt: string | null
 }
@@ -30,6 +31,10 @@ export interface Billing {
   paymentsEnabled: boolean
   options: PlanOption[]
   orders: Order[]
+  /** Salón con convenio que administra el evento. */
+  managedBy: string | null
+  /** Si quien consulta es personal del salón con convenio vigente: puede cambiar el paquete sin pago en línea. */
+  agreementVenue: string | null
 }
 
 export const getBilling = (eventId: string) => api<Billing>(`/events/${eventId}/billing`)
@@ -37,6 +42,10 @@ export const getBilling = (eventId: string) => api<Billing>(`/events/${eventId}/
 /** Crea la sesión de Stripe Checkout; el front redirige a la URL devuelta. */
 export const startCheckout = (eventId: string, planCode: string) =>
   send<{ url: string }>('POST', `/events/${eventId}/checkout`, { planCode })
+
+/** El salón aplica un paquete incluido en su convenio. */
+export const setAgreementPlan = (eventId: string, planCode: string) =>
+  send<Billing>('POST', `/events/${eventId}/agreement-plan`, { planCode })
 
 export const syncCheckout = (eventId: string, sessionId: string) =>
   send<Billing>('POST', `/events/${eventId}/checkout/sync`, { sessionId })

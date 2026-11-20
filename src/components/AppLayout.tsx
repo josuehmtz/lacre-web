@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Link, Navigate, Outlet, useNavigate } from 'react-router'
+import { Link, Navigate, Outlet, useLocation, useNavigate } from 'react-router'
 import { getMe, logout } from '../api/auth'
+import { getAccount } from '../api/venues'
 import ThemeToggle from '../theme/ThemeToggle'
 import Logo from './brand/Logo'
 
@@ -8,7 +9,9 @@ import Logo from './brand/Logo'
 export default function AppLayout() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+  const location = useLocation()
   const me = useQuery({ queryKey: ['me'], queryFn: getMe })
+  const account = useQuery({ queryKey: ['account'], queryFn: getAccount, enabled: me.isSuccess })
 
   const signOut = useMutation({
     mutationFn: logout,
@@ -24,7 +27,9 @@ export default function AppLayout() {
         <Logo />
       </main>
     )
-  if (me.isError) return <Navigate to="/login" replace />
+  // Sin sesión: al iniciar sesión regresa a donde iba (p. ej. el link de un salón).
+  if (me.isError)
+    return <Navigate to={`/login?returnUrl=${encodeURIComponent(location.pathname + location.search)}`} replace />
 
   return (
     <>
@@ -33,6 +38,11 @@ export default function AppLayout() {
           <Logo size={30} />
         </Link>
         <div className="topbar-user">
+          {account.data?.isAdmin && (
+            <Link to="/app/admin" className="small">
+              Administración
+            </Link>
+          )}
           <span className="muted">{me.data.email}</span>
           <ThemeToggle />
           <button className="secondary small" onClick={() => signOut.mutate()} disabled={signOut.isPending}>

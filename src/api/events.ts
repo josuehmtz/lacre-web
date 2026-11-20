@@ -10,7 +10,7 @@ export const eventTypeLabels: Record<EventType, string> = {
 }
 
 export const eventStatusLabels: Record<EventStatus, string> = {
-  Draft: 'Borrador',
+  Draft: 'Pago pendiente',
   Published: 'Publicado',
   Archived: 'Archivado',
 }
@@ -24,6 +24,10 @@ export interface EventSummary {
   venueName: string | null
   invitationCount: number
   totalPasses: number
+  /** Salón con convenio que administra el evento. */
+  managedBy: string | null
+  /** Ya hay un cliente (dueño) vinculado. */
+  hasClient: boolean
 }
 
 export interface EventDetail extends EventSummary {
@@ -32,6 +36,10 @@ export interface EventDetail extends EventSummary {
   rsvpDeadline: string | null
   passLimit: number
   rsvp: RsvpSummary
+  /** Quien consulta es personal del salón que administra el evento. */
+  isVenueStaff: boolean
+  /** Correo del cliente vinculado (solo lo ve el salón). */
+  clientEmail: string | null
 }
 
 export interface RsvpSummary {
