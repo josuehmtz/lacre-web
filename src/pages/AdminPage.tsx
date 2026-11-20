@@ -3,14 +3,18 @@ import { useState, type FormEvent } from 'react'
 import { Link, Navigate } from 'react-router'
 import { eventStatusLabels } from '../api/events'
 import {
+  agreementStatusLabels,
   createVenue,
   createVenueInvite,
+  deleteVenue,
   formatDateOnly,
   getAccount,
   getVenueEvents,
   getVenues,
   joinUrl,
+  reactivateVenue,
   removeVenueMember,
+  terminateVenue,
   updateVenue,
   type CreatedLink,
   type SaveVenue,
@@ -68,6 +72,8 @@ function VenueCard({ venue }: { venue: Venue }) {
   const [showEvents, setShowEvents] = useState(false)
   const [invite, setInvite] = useState<CreatedLink | null>(null)
   const [copied, setCopied] = useState(false)
+  const [terminating, setTerminating] = useState(false)
+  const [reason, setReason] = useState('')
 
   const events = useQuery({
     queryKey: ['admin-venue-events', venue.id],
@@ -88,6 +94,19 @@ function VenueCard({ venue }: { venue: Venue }) {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin-venues'] }),
   })
 
+  const refresh = () => queryClient.invalidateQueries({ queryKey: ['admin-venues'] })
+  const terminate = useMutation({
+    mutationFn: () => terminateVenue(venue.id, reason.trim() || null),
+    onSuccess: () => {
+      setTerminating(false)
+      setReason('')
+      refresh()
+    },
+  })
+  const reactivate = useMutation({ mutationFn: () => reactivateVenue(venue.id), onSuccess: refresh })
+  const remove = useMutation({ mutationFn: () => deleteVenue(venue.id), onSuccess: refresh })
+  const actionError = terminate.error ?? reactivate.error ?? remove.error
+
   if (editing)
     return (
       <section className="card">
@@ -106,14 +125,20 @@ function VenueCard({ venue }: { venue: Venue }) {
         <div>
           <h2>{venue.name}</h2>
           <p className="muted small">
-            Convenio del {formatDateOnly(venue.agreementStartsOn)} al {formatDateOnly(venue.agreementEndsOn)}
+            {agreementPeriod(venue.agreementStartsOn, venue.agreementEndsOn)}
             {venue.contactName && ` · ${venue.contactName}`}
             {venue.phone && ` · ${venue.phone}`}
           </p>
+          {venue.terminatedAt && (
+            <p className="muted small">
+              Terminado antes de tiempo el {formatDateTime(venue.terminatedAt)}
+              {venue.terminationReason && ` · ${venue.terminationReason}`}
+            </p>
+          )}
           {venue.notes && <p className="muted small">{venue.notes}</p>}
         </div>
-        <span className={`badge${venue.agreementActive ? ' rsvp-confirmed' : ''}`}>
-          {venue.agreementActive ? 'Vigente' : 'No vigente'}
+        <span className={`badge${venue.status === 'Active' ? ' rsvp-confirmed' : ''}`}>
+          {agreementStatusLabels[venue.status]}
         </span>
       </div>
 
@@ -187,7 +212,76 @@ function VenueCard({ venue }: { venue: Venue }) {
         <button className="secondary" onClick={() => setEditing(true)}>
           Editar
         </button>
+        {venue.status === 'Terminated' ? (
+          <button className="secondary" onClick={() => reactivate.mutate()} disabled={reactivate.isPending}>
+            {reactivate.isPending ? 'Reactivando…' : 'Reactivar convenio'}
+          </button>
+        ) : (
+          !terminating && (
+            <button className="danger" onClick={() => setTerminating(true)}>
+              Terminar convenio
+            </button>
+          )
+        )}
+        {venue.eventCount === 0 && (
+          <button
+            className="danger"
+            disabled={remove.isPending}
+            onClick={async () => {
+              if (
+                await confirm({
+                  title: `¿Eliminar ${venue.name}?`,
+                  message: 'Se borran el salón, su personal y sus links de acceso. No se puede deshacer.',
+                  confirmLabel: 'Eliminar salón',
+                  danger: true,
+                })
+              )
+                remove.mutate()
+            }}
+          >
+            Eliminar salón
+          </button>
+        )}
       </div>
+      {venue.eventCount > 0 && venue.status !== 'Terminated' && (
+        <p className="muted small">
+          Un salón con eventos no se puede eliminar (se conserva su historial). Si el convenio se acaba, termínalo.
+        </p>
+      )}
+
+      {terminating && (
+        <form
+          className="pin-box form"
+          onSubmit={(e) => {
+            e.preventDefault()
+            terminate.mutate()
+          }}
+        >
+          <strong>Terminar el convenio de {venue.name}</strong>
+          <span className="small">
+            A partir de ahora el salón ya no podrá dar de alta eventos ni cambiar paquetes por convenio. Los eventos que
+            ya creó siguen funcionando y su personal los conserva. Puedes reactivarlo después.
+          </span>
+          <label>
+            Motivo (opcional)
+            <input
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              maxLength={500}
+              placeholder="El salón canceló el convenio"
+            />
+          </label>
+          <div className="actions">
+            <button type="submit" className="danger-solid" disabled={terminate.isPending}>
+              {terminate.isPending ? 'Terminando…' : 'Terminar convenio'}
+            </button>
+            <button type="button" className="secondary" onClick={() => setTerminating(false)}>
+              Cancelar
+            </button>
+          </div>
+        </form>
+      )}
+      {actionError && <p className="error">{actionError.message}</p>}
       {createInvite.error && <p className="error">{createInvite.error.message}</p>}
       {removeMember.error && <p className="error">{removeMember.error.message}</p>}
 
@@ -234,11 +328,29 @@ function VenueCard({ venue }: { venue: Venue }) {
 const isoDate = (d: Date) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 const today = () => isoDate(new Date())
-const inOneYear = () => {
-  const d = new Date()
-  d.setFullYear(d.getFullYear() + 1)
-  d.setDate(d.getDate() - 1)
-  return isoDate(d)
+
+/** "Del 19 nov 2026 al 18 nov 2027" o "Desde el 19 nov 2026, por tiempo indefinido". */
+const agreementPeriod = (startsOn: string, endsOn: string | null) =>
+  endsOn
+    ? `Convenio del ${formatDateOnly(startsOn)} al ${formatDateOnly(endsOn)}`
+    : `Convenio desde el ${formatDateOnly(startsOn)}, por tiempo indefinido`
+
+type Duration = '6' | '12' | '24' | 'indefinite' | 'custom'
+
+const durationLabels: Record<Duration, string> = {
+  '6': '6 meses',
+  '12': '1 año',
+  '24': '2 años',
+  indefinite: 'Tiempo indefinido',
+  custom: 'Hasta una fecha específica',
+}
+
+/** Último día de un convenio de N meses que empieza en `start` ("2026-11-19" + 12 → "2027-11-18"). */
+const endAfterMonths = (start: string, months: number) => {
+  const [y, m, d] = start.split('-').map(Number)
+  const end = new Date(y, m - 1 + months, d)
+  end.setDate(end.getDate() - 1)
+  return isoDate(end)
 }
 
 function VenueForm({ venue, onDone }: { venue?: Venue; onDone: () => void }) {
@@ -248,7 +360,18 @@ function VenueForm({ venue, onDone }: { venue?: Venue; onDone: () => void }) {
   const [phone, setPhone] = useState(venue?.phone ?? '')
   const [notes, setNotes] = useState(venue?.notes ?? '')
   const [startsOn, setStartsOn] = useState(venue?.agreementStartsOn ?? today())
-  const [endsOn, setEndsOn] = useState(venue?.agreementEndsOn ?? inOneYear())
+  // Nuevo: 1 año por default. Al editar se muestra la fecha que ya tiene (o indefinido).
+  const [duration, setDuration] = useState<Duration>(!venue ? '12' : venue.agreementEndsOn ? 'custom' : 'indefinite')
+  const [customEnd, setCustomEnd] = useState(venue?.agreementEndsOn ?? '')
+
+  const endsOn =
+    duration === 'indefinite'
+      ? null
+      : duration === 'custom'
+        ? customEnd || null
+        : startsOn
+          ? endAfterMonths(startsOn, Number(duration))
+          : null
 
   const save = useMutation({
     mutationFn: (data: SaveVenue) => (venue ? updateVenue(venue.id, data) : createVenue(data)),
@@ -289,9 +412,27 @@ function VenueForm({ venue, onDone }: { venue?: Venue; onDone: () => void }) {
         <input type="date" value={startsOn} onChange={(e) => setStartsOn(e.target.value)} required />
       </label>
       <label>
-        Fin del convenio
-        <input type="date" value={endsOn} onChange={(e) => setEndsOn(e.target.value)} required />
+        Duración
+        <select value={duration} onChange={(e) => setDuration(e.target.value as Duration)}>
+          {Object.entries(durationLabels).map(([value, label]) => (
+            <option key={value} value={value}>
+              {label}
+            </option>
+          ))}
+        </select>
       </label>
+      {duration === 'custom' ? (
+        <label className="span-2">
+          Último día del convenio
+          <input type="date" value={customEnd} min={startsOn} onChange={(e) => setCustomEnd(e.target.value)} required />
+        </label>
+      ) : (
+        <p className="muted small span-2">
+          {endsOn
+            ? `El convenio termina el ${formatDateOnly(endsOn)} (último día en que el salón puede dar de alta eventos).`
+            : 'Sin fecha de término: sigue vigente hasta que lo termines desde aquí.'}
+        </p>
+      )}
       <label className="span-2">
         Notas (paquetes incluidos, forma de pago acordada…)
         <textarea value={notes} onChange={(e) => setNotes(e.target.value)} maxLength={1000} rows={3} />

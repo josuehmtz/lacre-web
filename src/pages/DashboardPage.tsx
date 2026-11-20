@@ -8,12 +8,6 @@ import { formatDateTime } from '../lib/dates'
 import { plural } from '../lib/text'
 import { Seal } from '../components/brand/Logo'
 
-/** "2026-11-19" en la fecha local del navegador (comparable con las fechas del convenio). */
-const localToday = () => {
-  const d = new Date()
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-}
-
 const monthFmt = new Intl.DateTimeFormat('es-MX', { month: 'short' })
 
 /** null = cerrado; 'client' = compra directa; MyVenue = alta por convenio de ese salón. */
@@ -24,7 +18,7 @@ export default function DashboardPage() {
   const events = useQuery({ queryKey: ['events'], queryFn: getEvents })
   const account = useQuery({ queryKey: ['account'], queryFn: getAccount })
 
-  const activeVenues = account.data?.venues.filter((v) => v.agreementActive) ?? []
+  const activeVenues = account.data?.venues.filter((v) => v.status === 'Active') ?? []
   const isVenueStaff = (account.data?.venues.length ?? 0) > 0
   const pendingPayment = events.data?.find((e) => e.status === 'Draft' && !e.managedBy)
 
@@ -50,18 +44,25 @@ export default function DashboardPage() {
       </div>
 
       {account.data?.venues
-        .filter((v) => !v.agreementActive)
+        .filter((v) => v.status !== 'Active')
         .map((v) => (
           <p key={v.id} className="notice notice-info">
-            {v.agreementStartsOn > localToday() ? (
+            {v.status === 'Upcoming' && (
               <>
                 El convenio de <strong>{v.name}</strong> empieza el {formatDateOnly(v.agreementStartsOn)}. A partir de
                 ese día podrás dar de alta eventos.
               </>
-            ) : (
+            )}
+            {v.status === 'Expired' && (
               <>
-                El convenio de <strong>{v.name}</strong> terminó el {formatDateOnly(v.agreementEndsOn)}, así que ya no
+                El convenio de <strong>{v.name}</strong> terminó el {formatDateOnly(v.agreementEndsOn!)}, así que ya no
                 puedes dar de alta eventos nuevos. Tus eventos existentes siguen disponibles.
+              </>
+            )}
+            {v.status === 'Terminated' && (
+              <>
+                El convenio de <strong>{v.name}</strong> fue terminado, así que ya no puedes dar de alta eventos nuevos.
+                Tus eventos existentes siguen disponibles.
               </>
             )}
           </p>

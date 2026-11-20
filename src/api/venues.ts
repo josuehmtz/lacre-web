@@ -1,12 +1,24 @@
 import { api, send } from './client'
 import type { EventDetail, EventStatus, SaveEvent } from './events'
 
+/** Upcoming: aún no empieza · Expired: pasó su fecha de término · Terminated: se terminó antes de tiempo. */
+export type AgreementStatus = 'Upcoming' | 'Active' | 'Expired' | 'Terminated'
+
+export const agreementStatusLabels: Record<AgreementStatus, string> = {
+  Upcoming: 'Por iniciar',
+  Active: 'Vigente',
+  Expired: 'Vencido',
+  Terminated: 'Terminado',
+}
+
 export interface MyVenue {
   id: string
   name: string
   agreementStartsOn: string
-  agreementEndsOn: string
-  agreementActive: boolean
+  /** null = por tiempo indefinido. */
+  agreementEndsOn: string | null
+  status: AgreementStatus
+  terminatedAt: string | null
 }
 
 /** Cuenta actual: si es administrador de Lacre y de qué salones forma parte. */
@@ -63,8 +75,10 @@ export interface Venue {
   phone: string | null
   notes: string | null
   agreementStartsOn: string
-  agreementEndsOn: string
-  agreementActive: boolean
+  agreementEndsOn: string | null
+  status: AgreementStatus
+  terminatedAt: string | null
+  terminationReason: string | null
   members: VenueMember[]
   eventCount: number
 }
@@ -75,7 +89,8 @@ export interface SaveVenue {
   phone: string | null
   notes: string | null
   agreementStartsOn: string
-  agreementEndsOn: string
+  /** null = por tiempo indefinido. */
+  agreementEndsOn: string | null
 }
 
 export interface VenueEvent {
@@ -91,6 +106,10 @@ export interface VenueEvent {
 export const getVenues = () => api<Venue[]>('/admin/venues')
 export const createVenue = (v: SaveVenue) => send<Venue>('POST', '/admin/venues', v)
 export const updateVenue = (id: string, v: SaveVenue) => send<Venue>('PUT', `/admin/venues/${id}`, v)
+export const terminateVenue = (id: string, reason: string | null) =>
+  send<Venue>('POST', `/admin/venues/${id}/terminate`, { reason })
+export const reactivateVenue = (id: string) => send<Venue>('POST', `/admin/venues/${id}/reactivate`)
+export const deleteVenue = (id: string) => send<void>('DELETE', `/admin/venues/${id}`)
 export const createVenueInvite = (id: string) => send<CreatedLink>('POST', `/admin/venues/${id}/invite-link`)
 export const removeVenueMember = (id: string, userId: string) =>
   send<void>('DELETE', `/admin/venues/${id}/members/${userId}`)
