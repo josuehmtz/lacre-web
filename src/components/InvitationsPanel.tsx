@@ -5,6 +5,7 @@ import {
   deleteInvitation,
   getInvitations,
   invitationUrl,
+  markSent,
   rsvpLabels,
   setRsvp,
   updateInvitation,
@@ -13,7 +14,8 @@ import {
   type RsvpStatus,
   type SaveInvitation,
 } from '../api/invitations'
-import { whatsAppLink } from '../lib/whatsapp'
+import { invitationMessage, reminderMessage, toWhatsAppNumber, whatsAppLink } from '../lib/whatsapp'
+import QuickSendDialog from './QuickSendDialog'
 import { useConfirm } from '../lib/confirm'
 
 interface Props {
@@ -38,7 +40,7 @@ const filterLabels: Record<Filter, string> = {
 /** Confirmada, pero todavía no entran todas sus personas confirmadas (el día del evento). */
 const isMissing = (i: Invitation) => i.rsvpStatus === 'Confirmed' && i.checkedIn < i.confirmedPasses
 
-const shortDate = new Intl.DateTimeFormat('es-MX', { day: 'numeric', month: 'long' })
+const sentFmt = new Intl.DateTimeFormat('es-MX', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })
 
 export default function InvitationsPanel({ eventId, eventTitle, rsvpDeadline, remainingPasses, readOnly }: Props) {
   const queryClient = useQueryClient()
@@ -47,6 +49,7 @@ export default function InvitationsPanel({ eventId, eventTitle, rsvpDeadline, re
   const [filter, setFilter] = useState<Filter>('all')
   const [row, setRow] = useState<RowMode>(null)
   const [copiedId, setCopiedId] = useState<string | null>(null)
+  const [quickSend, setQuickSend] = useState(false)
 
   const invitations = useQuery({
     queryKey: ['invitations', eventId],
@@ -87,12 +90,20 @@ export default function InvitationsPanel({ eventId, eventTitle, rsvpDeadline, re
     setTimeout(() => setCopiedId((c) => (c === inv.id ? null : c)), 2000)
   }
 
+  // Recordatorio solo a quien ya recibió la invitación; si nunca se mandó, va la invitación.
+  const isReminder = (inv: Invitation) => !!inv.sentAt && inv.rsvpStatus === 'Pending' && !!rsvpDeadline
   const whatsAppText = (inv: Invitation) => {
     const url = invitationUrl(inv.token)
-    if (inv.rsvpStatus === 'Pending' && rsvpDeadline)
-      return `¡Hola ${inv.displayName}! Te recordamos confirmar tu asistencia a "${eventTitle}" antes del ${shortDate.format(new Date(rsvpDeadline))}. Aquí está tu invitación: ${url}`
-    return `¡Hola ${inv.displayName}! Te compartimos tu invitación a "${eventTitle}": ${url}`
+    return isReminder(inv)
+      ? reminderMessage(inv.displayName, eventTitle, url, rsvpDeadline!)
+      : invitationMessage(inv.displayName, eventTitle, url)
   }
+
+  // El botón de WhatsApp de cada fila también cuenta como envío.
+  const sentFromRow = useMutation({
+    mutationFn: (id: string) => markSent(eventId, id),
+    onSuccess: refresh,
+  })
 
   const all = invitations.data ?? []
   const counts: Record<Filter, number> = {
@@ -102,6 +113,9 @@ export default function InvitationsPanel({ eventId, eventTitle, rsvpDeadline, re
     Declined: all.filter((i) => i.rsvpStatus === 'Declined').length,
     missing: all.filter(isMissing).length,
   }
+  const unsent = all.filter((i) => !i.sentAt)
+  const toSend = unsent.filter((i) => toWhatsAppNumber(i.phone))
+  const withoutPhone = unsent.length - toSend.length
   // "Faltan por llegar" solo tiene sentido cuando ya empezó a llegar gente.
   const eventStarted = all.some((i) => i.checkedIn > 0)
   const term = search.trim().toLowerCase()
@@ -133,7 +147,31 @@ export default function InvitationsPanel({ eventId, eventTitle, rsvpDeadline, re
           onSubmit={(data) => create.mutate(data)}
         />
       )}
-      {[create, update, answer, remove].map(
+      {!readOnly && all.length > 0 && (
+        <div className="quick-send-bar">
+          <span className="muted small">
+            {all.length - unsent.length} de {all.length} enviadas
+            {withoutPhone > 0 && ` · ${withoutPhone} sin teléfono`}
+          </span>
+          {toSend.length > 0 && (
+            <button className="small" onClick={() => setQuickSend(true)}>
+              Envío rápido por WhatsApp ({toSend.length})
+            </button>
+          )}
+        </div>
+      )}
+      {quickSend && (
+        <QuickSendDialog
+          eventId={eventId}
+          eventTitle={eventTitle}
+          pending={toSend}
+          withoutPhone={withoutPhone}
+          onChanged={refresh}
+          onClose={() => setQuickSend(false)}
+        />
+      )}
+
+      {[create, update, answer, remove, sentFromRow].map(
         (m, i) => m.error && <p key={i} className="error">{m.error.message}</p>,
       )}
 
@@ -228,6 +266,13 @@ export default function InvitationsPanel({ eventId, eventTitle, rsvpDeadline, re
                     <td className="hide-sm phone">{inv.phone ?? <span className="muted">—</span>}</td>
                     <td>
                       <span className={`badge rsvp-${inv.rsvpStatus.toLowerCase()}`}>{rsvpLabels[inv.rsvpStatus]}</span>
+                      {inv.sentAt ? (
+                        <span className="badge sent-badge" title={`Enviada el ${sentFmt.format(new Date(inv.sentAt))}`}>
+                          Enviada
+                        </span>
+                      ) : (
+                        <span className="badge unsent-badge">Sin enviar</span>
+                      )}
                       {inv.checkedIn > 0 && (
                         <span className="badge arrived-badge">
                           Llegaron {inv.checkedIn}/{inv.rsvpStatus === 'Confirmed' ? inv.confirmedPasses : inv.passes}
@@ -242,8 +287,14 @@ export default function InvitationsPanel({ eventId, eventTitle, rsvpDeadline, re
                         {copiedId === inv.id ? '¡Copiado!' : 'Copiar link'}
                       </button>
                       {wa && (
-                        <a className="button secondary small" href={wa} target="_blank" rel="noreferrer">
-                          {inv.rsvpStatus === 'Pending' && rsvpDeadline ? 'Recordar' : 'WhatsApp'}
+                        <a
+                          className="button secondary small"
+                          href={wa}
+                          target="_blank"
+                          rel="noreferrer"
+                          onClick={() => !inv.sentAt && !readOnly && sentFromRow.mutate(inv.id)}
+                        >
+                          {isReminder(inv) ? 'Recordar' : 'WhatsApp'}
                         </a>
                       )}
                       {!readOnly && (

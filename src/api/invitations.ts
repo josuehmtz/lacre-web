@@ -23,6 +23,8 @@ export interface Invitation {
   checkedIn: number
   /** Las que la hostess marcó por nombre. */
   arrivedNames: string[]
+  /** Cuándo se mandó por WhatsApp (null = sin enviar). */
+  sentAt: string | null
 }
 
 export interface ManualRsvp {
@@ -48,6 +50,10 @@ export const setRsvp = (eventId: string, id: string, rsvp: ManualRsvp) =>
   send<Invitation>('PUT', `${base(eventId)}/${id}/rsvp`, rsvp)
 export const deleteInvitation =(eventId: string, id: string) =>
   send<void>('DELETE', `${base(eventId)}/${id}`)
+
+/** Anota que la invitación ya se mandó por WhatsApp (o lo deshace si al final no salió). */
+export const markSent = (eventId: string, id: string) => send<Invitation>('PUT', `${base(eventId)}/${id}/sent`)
+export const unmarkSent = (eventId: string, id: string) => send<Invitation>('DELETE', `${base(eventId)}/${id}/sent`)
 
 /** Link público de la invitación (el mismo que irá en el QR). */
 export const invitationUrl = (token: string) => `${window.location.origin}/i/${token}`
